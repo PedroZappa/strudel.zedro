@@ -1,35 +1,60 @@
 {
   "name": "neovim-strudel-server",
-  "version": "1.0.0",
-  "description": "Bun server for serving Neovim files to strudel.cc REPL with Playwright browser automation",
-  "main": "server.ts",
+  "version": "2.0.0",
+  "description": "Refactored Neovim + Strudel integration server with modular TypeScript architecture",
+  "type": "module",
+  "main": "dist/server/main-server.js",
   "scripts": {
-    "start": "bun run server.ts",
-    "dev": "bun --hot run server.ts",
-    "playwright:install": "bunx playwright install chromium"
+    "dev": "bun run server.ts",
+    "build": "bun build --target=bun --outdir=dist --sourcemap=external server.ts client-app.ts client-api.ts client-ui.ts client-types.ts server-file-manager.ts server-neovim-manager.ts server-playwright-manager.ts",
+    "build:client": "bun build --target=browser --outdir=dist/client client-app.ts client-api.ts client-ui.ts client-types.ts",
+    "build:server": "bun build --target=bun --outdir=dist/server server.ts server-file-manager.ts server-neovim-manager.ts server-playwright-manager.ts",
+    "start": "bun run dist/server.js",
+    "clean": "rm -rf dist build",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "test": "bun test",
+    "setup": "./setup.sh"
   },
-  "keywords": [
-    "bun",
-    "neovim",
-    "strudel",
-    "typescript",
-    "live-coding",
-    "music",
-    "playwright",
-    "browser-automation"
-  ],
-  "author": "Zedro",
-  "license": "MIT",
   "dependencies": {
     "neovim": "^4.10.1",
     "find-process": "^1.4.7",
     "playwright": "^1.40.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^20.0.0"
-  },
-  "peerDependencies": {
+    "@types/node": "^20.0.0",
+    "bun-types": "latest",
+    "prettier": "^3.0.0",
     "typescript": "^5.0.0"
-  }
+  },
+  "files": [
+    "dist/",
+    "*.html",
+    "*.css",
+    "*.md"
+  ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "keywords": [
+    "neovim",
+    "strudel",
+    "live-coding",
+    "music",
+    "typescript",
+    "bun",
+    "playwright",
+    "rpc"
+  ],
+  "author": "Strudel Integration Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/neovim-strudel-server"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/neovim-strudel-server/issues"
+  },
+  "homepage": "https://github.com/your-username/neovim-strudel-server#readme"
 }

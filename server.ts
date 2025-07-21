@@ -1,568 +1,226 @@
-// server.ts - Fixed Neovim + Strudel integration with proper RPC and static file serving
-import { watch } from "fs";
+// server/main-server.ts - Refactored main server with modular architecture
 import path from "path";
-import { spawn, ChildProcess } from "child_process";
-import find from "find-process";
-import { chromium, Browser, Page, BrowserContext } from "playwright";
-import { attach, NeovimClient } from "neovim";
-import { createConnection } from "net";
+import { FileManager } from "./file-manager";
+import { NeovimManager } from "./neovim-manager";
+import { PlaywrightManager } from "./playwright-manager";
 
-// Import HTML template as text using Bun's text import feature
+// Import HTML template
 import htmlTemplate from "./strudel-template.html" with { type: "text" };
 
-interface NeovimFileInfo {
-  path: string;
-  name: string;
-  content: string;
-  lastModified: Date;
-  bufnr?: number;
+interface ServerConfig {
+  port: number;
+  workingDir: string;
+  staticFilesDir?: string;
+  playwright?: {
+    headless: boolean;
+    autoStart: boolean;
+  };
 }
 
-interface NeovimInstance {
-  process?: ChildProcess;
-  client?: NeovimClient;
-  connected: boolean;
-  address?: string;
-  pid?: number;
-}
+export class StrudelServer {
+  private config: ServerConfig;
+  private fileManager: FileManager;
+  private neovimManager: NeovimManager;
+  private playwrightManager: PlaywrightManager;
+  private server?: any;
 
-interface PlaywrightSession {
-  browser?: Browser;
-  context?: BrowserContext;
-  page?: Page;
-  connected: boolean;
-}
-
-class NeovimFileServer {
-  private files: Map<string, NeovimFileInfo> = new Map();
-  private watchers: Map<string, any> = new Map();
-  private neovim: NeovimInstance = { connected: false };
-  private playwright: PlaywrightSession = { connected: false };
-
-  constructor(private workingDir: string = process.cwd()) {}
-
-  // FIXED: Proper static file serving method
-  async serveStaticFile(url: URL): Promise<Response | null> {
-    const filePath = url.pathname;
-    
-    // List of allowed static file extensions and their MIME types
-    const mimeTypes: Record<string, string> = {
-      '.css': 'text/css',
-      '.js': 'application/javascript',
-      '.html': 'text/html',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon',
-      '.json': 'application/json'
+  constructor(config: Partial<ServerConfig> = {}) {
+    this.config = {
+      port: 3001,
+      workingDir: process.cwd(),
+      playwright: {
+        headless: false,
+        autoStart: true
+      },
+      ...config
     };
 
-    // Get file extension
+    // Initialize managers
+    this.fileManager = new FileManager(this.config.workingDir);
+    this.neovimManager = new NeovimManager(this.fileManager, this.config.workingDir);
+    this.playwrightManager = new PlaywrightManager(`http://localhost:${this.config.port}`);
+
+    this.fetch = this.fetch.bind(this);
+  }
+
+  // CORS headers
+  private getCorsHeaders() {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    };
+  }
+
+  // Static file serving with proper MIME types
+  async serveStaticFile(url: URL): Promise<Response | null> {
+    const filePath = url.pathname;
+
+    const mimeTypes: Record<string, string> = {
+      '.strdl': 'text/strdl',
+      '.json': 'application/json',
+      '.css': 'text/css',
+      // '.js': 'application/javascript',
+      // '.ts': 'application/typescript',
+      // '.html': 'text/html',
+      // '.png': 'image/png',
+      // '.jpg': 'image/jpeg',
+      // '.jpeg': 'image/jpeg',
+      // '.gif': 'image/gif',
+      // '.svg': 'image/svg+xml',
+      // '.ico': 'image/x-icon',
+    };
+
     const ext = path.extname(filePath).toLowerCase();
-    
-    // Check if it's a supported static file
+
     if (!mimeTypes[ext]) {
-      return null; // Not a static file we handle
+      return null;
     }
 
     try {
-      // Construct the file path (remove leading slash and resolve relative to working directory)
-      const localFilePath = path.join(this.workingDir, filePath.substring(1));
+      const localFilePath = path.join(this.config.workingDir, filePath.substring(1));
       const file = Bun.file(localFilePath);
-      
-      // Check if file exists
+
       const exists = await file.exists();
       if (!exists) {
-        console.log(`Static file not found: ${localFilePath}`);
+        console.log(`❌ Static file not found: ${localFilePath}`);
         return new Response("File not found", { status: 404 });
       }
 
       console.log(`✅ Serving static file: ${localFilePath}`);
-      
+
       return new Response(file, {
         headers: {
           "Content-Type": mimeTypes[ext],
-          "Cache-Control": "public, max-age=3600" // Cache for 1 hour
+          "Cache-Control": "public, max-age=3600",
+          ...this.getCorsHeaders()
         }
       });
     } catch (error) {
-      console.error(`Error serving static file ${filePath}:`, error);
+      console.error(`❌ Error serving static file ${filePath}:`, error);
       return new Response("Internal server error", { status: 500 });
     }
   }
 
-  // Fixed Playwright browser management - targets local REPL
-  async initPlaywright(): Promise<boolean> {
-    try {
-      console.log("🎭 Starting Playwright browser...");
-
-      this.playwright.browser = await chromium.launch({
-        headless: false,
-        args: [
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
-          '--allow-running-insecure-content'
-        ]
-      });
-
-      this.playwright.context = await this.playwright.browser.newContext({
-        viewport: { width: 1400, height: 900 },
-        permissions: ['microphone']
-      });
-
-      this.playwright.page = await this.playwright.context.newPage();
-
-      // Navigate to LOCAL Strudel integration page, not external strudel.cc
-      await this.playwright.page.goto('http://localhost:3001/strudel', { 
-        waitUntil: 'domcontentloaded',
-        timeout: 30000
-      });
-
-      // Wait for the strudel-editor web component to load
-      await this.playwright.page.waitForSelector('iframe', { timeout: 10000 });
-
-      this.playwright.connected = true;
-      console.log("✅ Playwright browser ready and targeting local Strudel REPL");
-      return true;
-    } catch (error) {
-      console.error("❌ Failed to initialize Playwright:", error);
-      return false;
-    }
-  }
-
-  // Fixed code injection - targets the iframe with strudel.cc
-  async sendCodeToStrudel(code: string): Promise<boolean> {
-    if (!this.playwright.connected || !this.playwright.page) {
-      console.log("🎭 Browser not connected, initializing...");
-      const success = await this.initPlaywright();
-      if (!success) return false;
-    }
-
-    try {
-      console.log("📤 Sending code to Strudel REPL...");
-
-      // Switch to the iframe context (strudel.cc)
-      const frameHandle = await this.playwright.page!.waitForSelector('iframe');
-      const frame = await frameHandle.contentFrame();
-      
-      if (!frame) {
-        throw new Error("Could not access iframe content");
+  // API route handlers
+  private async handleFileAPI(request: Request, url: URL): Promise<Response> {
+    if (url.pathname === "/api/files") {
+      if (request.method === "GET") {
+        const files = this.fileManager.getFilesList();
+        return new Response(JSON.stringify(files), {
+          headers: {
+            "Content-Type": "application/json",
+            ...this.getCorsHeaders()
+          }
+        });
       }
 
-      // Wait for CodeMirror editor to be ready
-      await frame.waitForSelector('.cm-editor', { timeout: 10000 });
+      if (request.method === "POST") {
+        // Refresh files - try Neovim buffers first, fallback to local files
+        if (this.neovimManager.isConnected()) {
+          await this.neovimManager.scanNeovimBuffers();
+        } else {
+          await this.fileManager.scanLocalFiles();
+        }
 
-      // Focus on the editor and clear existing content
-      await frame.click('.cm-editor');
-      await frame.keyboard.press('Control+A');
-
-      // Type the new code
-      await frame.keyboard.type(code);
-
-      // Execute the code (Ctrl+Enter is standard for Strudel)
-      await frame.keyboard.press('Control+Enter');
-
-      console.log("✅ Code sent to Strudel successfully");
-      return true;
-    } catch (error) {
-      console.error("❌ Failed to send code to Strudel:", error);
-      return false;
-    }
-  }
-
-  async stopStrudel(): Promise<boolean> {
-    if (!this.playwright.connected || !this.playwright.page) {
-      return false;
-    }
-
-    try {
-      // Access iframe and execute hush command
-      const frameHandle = await this.playwright.page!.waitForSelector('iframe');
-      const frame = await frameHandle.contentFrame();
-      
-      if (!frame) {
-        throw new Error("Could not access iframe content");
+        return new Response(JSON.stringify({ success: true }), {
+          headers: {
+            "Content-Type": "application/json",
+            ...this.getCorsHeaders()
+          }
+        });
       }
-
-      await frame.evaluate(() => {
-        (window as any).hush?.();
-      });
-
-      console.log("⏹️ Stopped Strudel playback");
-      return true;
-    } catch (error) {
-      console.error("❌ Failed to stop Strudel:", error);
-      return false;
     }
-  }
 
-  // FIXED: Proper Neovim RPC connection using the neovim package
-  async connectToNeovim(): Promise<boolean> {
-    try {
-      console.log("🔍 Looking for running Neovim instances...");
-      const runningInstances = await this.findRunningNeovim();
+    if (url.pathname.startsWith("/api/file/")) {
+      const filePath = decodeURIComponent(url.pathname.replace("/api/file/", ""));
 
-      if (runningInstances.length === 0) {
-        console.log("❌ No running Neovim instances found");
-        console.log("💡 Start Neovim with: nvim --listen /tmp/nvim-socket");
-        return false;
-      }
-
-      // Try to connect to each instance
-      for (const instance of runningInstances) {
-        try {
-          console.log(`🔌 Attempting to connect to Neovim PID: ${instance.pid}`);
-
-          // Check for existing server address or create one
-          let serverAddress = instance.address;
-          
-          // If no address found, try to connect via v:servername
-          if (!serverAddress) {
-            // Try common socket locations
-            const possibleSockets = [
-              `/tmp/nvim-${instance.pid}`,
-              `/tmp/nvimsocket-${instance.pid}`,
-              `/tmp/nvim-socket`,
-              process.env.NVIM_LISTEN_ADDRESS
-            ].filter(Boolean);
-
-            for (const socketPath of possibleSockets) {
-              try {
-                console.log(`🧪 Testing socket: ${socketPath}`);
-                const testConnection = createConnection(socketPath!);
-                await new Promise((resolve, reject) => {
-                  testConnection.on('connect', resolve);
-                  testConnection.on('error', reject);
-                  setTimeout(reject, 1000); // 1 second timeout
-                });
-                testConnection.destroy();
-                serverAddress = socketPath!;
-                console.log(`✅ Found working socket: ${socketPath}`);
-                break;
-              } catch {
-                console.log(`❌ Socket not available: ${socketPath}`);
-                continue;
-              }
+      if (request.method === "GET") {
+        const file = this.fileManager.getFile(filePath);
+        if (!file) {
+          return new Response(JSON.stringify({ error: "File not found" }), {
+            status: 404,
+            headers: {
+              "Content-Type": "application/json",
+              ...this.getCorsHeaders()
             }
-          }
-
-          if (!serverAddress) {
-            console.log(`❌ No RPC address found for PID ${instance.pid}`);
-            continue;
-          }
-
-          // Establish RPC connection
-          console.log(`🔗 Connecting to: ${serverAddress}`);
-          const socket = createConnection(serverAddress);
-          const nvimClient = attach({ reader: socket, writer: socket });
-
-          // Test the connection
-          await nvimClient.command('echo "Connected from Bun server!"');
-
-          this.neovim = {
-            client: nvimClient,
-            connected: true,
-            pid: instance.pid,
-            address: serverAddress
-          };
-
-          console.log(`✅ Successfully connected to Neovim (PID: ${instance.pid})`);
-          
-          // Now get actual buffer list from Neovim
-          await this.scanNeovimBuffers();
-          return true;
-
-        } catch (error) {
-          console.log(`Failed to connect to PID ${instance.pid}:`, error);
-          continue;
-        }
-      }
-
-      console.log("❌ Could not connect to any Neovim instances");
-      console.log("💡 Try: nvim --listen /tmp/nvim-socket");
-      return false;
-    } catch (error) {
-      console.error("Error connecting to Neovim:", error);
-      return false;
-    }
-  }
-
-  // FIXED: Enhanced buffer scanning that actually gets buffers from Neovim
-  async scanNeovimBuffers(): Promise<void> {
-    if (!this.neovim.connected || !this.neovim.client) {
-      console.log("⚠️ Neovim not connected, scanning local files instead");
-      await this.scanLocalFiles();
-      return;
-    }
-
-    try {
-      console.log("📋 Getting buffer list from Neovim...");
-
-      // Get list of all buffers
-      const buffers = await this.neovim.client.buffers;
-      let bufferCount = 0;
-
-      for (const buffer of buffers) {
-        try {
-          // Get buffer info
-          const bufnr = buffer.id;
-          const name = await buffer.name;
-          const lines = await buffer.lines;
-          
-          // Skip unnamed or empty buffers
-          if (!name || name.startsWith('term://') || name === '') {
-            continue;
-          }
-
-          // Skip if buffer is not loaded
-          const isLoaded = await buffer.loaded;
-          if (!isLoaded) {
-            continue;
-          }
-
-          const relativePath = path.relative(this.workingDir, name);
-          const content = lines.join('\n');
-
-          const fileInfo: NeovimFileInfo = {
-            path: relativePath,
-            name: path.basename(name),
-            content: content,
-            lastModified: new Date(),
-            bufnr: bufnr
-          };
-
-          this.files.set(relativePath, fileInfo);
-          
-          // Watch the actual file for changes
-          this.watchFile(name, relativePath);
-          bufferCount++;
-
-        } catch (error) {
-          console.error(`Error processing buffer:`, error);
-        }
-      }
-
-      console.log(`📁 Loaded ${bufferCount} buffers from Neovim session`);
-
-    } catch (error) {
-      console.error("Error scanning Neovim buffers:", error);
-      // Fallback to local file scanning
-      await this.scanLocalFiles();
-    }
-  }
-
-  // Fallback local file scanning  
-  async scanLocalFiles(): Promise<void> {
-    console.log("📁 Scanning local files...");
-    const patterns = [
-      "**/*.strudel",
-      "**/*.strdl", 
-      "**/*.js",
-      "**/*.ts",
-      "**/*.mjs"
-    ];
-
-    let totalFiles = 0;
-
-    for (const pattern of patterns) {
-      const glob = new Bun.Glob(pattern);
-
-      for await (const file of glob.scan({ 
-        cwd: this.workingDir,
-        onlyFiles: true,
-        followSymlinks: false
-      })) {
-        // Skip node_modules and hidden directories
-        if (file.includes('node_modules') || file.startsWith('.')) {
-          continue;
+          });
         }
 
-        const fullPath = path.join(this.workingDir, file);
-        await this.addFile(fullPath, file);
-        totalFiles++;
+        return new Response(JSON.stringify(file), {
+          headers: {
+            "Content-Type": "application/json",
+            ...this.getCorsHeaders()
+          }
+        });
+      }
+
+      if (request.method === "PUT") {
+        const body = await request.json();
+        const success = await this.fileManager.updateFileContent(filePath, body.content);
+
+        return new Response(JSON.stringify({ success }), {
+          status: success ? 200 : 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...this.getCorsHeaders()
+          }
+        });
       }
     }
 
-    console.log(`📁 Scanned ${totalFiles} local files`);
+    return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
   }
 
-  async findRunningNeovim(): Promise<{ pid: number; address?: string }[]> {
-    try {
-      const processes = await find('name', /n?vim/, true);
-      const neovimProcesses = processes.filter(p => 
-        (p.name.includes('nvim') || p.name.includes('neovim')) && 
-        !p.cmd.includes('--embed') && // Skip embedded instances
-        !p.cmd.includes('--headless') // Skip headless instances unless they have --listen
-      );
-
-      console.log(`Found ${neovimProcesses.length} running Neovim processes`);
-
-      return neovimProcesses.map(p => ({
-        pid: p.pid,
-        address: process.env.NVIM_LISTEN_ADDRESS || `/tmp/nvim-${p.pid}`
-      }));
-    } catch (error) {
-      console.error("Error finding Neovim processes:", error);
-      return [];
-    }
-  }
-
-  // Rest of the methods remain the same...
-  async addFile(fullPath: string, relativePath: string): Promise<void> {
-    try {
-      const fileContent = await Bun.file(fullPath).text();
-      const stats = await Bun.file(fullPath).stat();
-
-      const fileInfo: NeovimFileInfo = {
-        path: relativePath,
-        name: path.basename(relativePath),
-        content: fileContent,
-        lastModified: new Date(stats.mtime || Date.now())
-      };
-
-      this.files.set(relativePath, fileInfo);
-      this.watchFile(fullPath, relativePath);
-    } catch (error) {
-      console.error(`Error adding file ${relativePath}:`, error);
-    }
-  }
-
-  watchFile(fullPath: string, relativePath: string): void {
-    if (this.watchers.has(relativePath)) {
-      this.watchers.get(relativePath)?.close();
-    }
-
-    const watcher = watch(fullPath, { persistent: false }, async (eventType) => {
-      if (eventType === 'change') {
-        console.log(`📝 File changed: ${relativePath}`);
-        await this.addFile(fullPath, relativePath);
-      }
-    });
-
-    this.watchers.set(relativePath, watcher);
-  }
-
-  getFilesList(): Array<{path: string, name: string, lastModified: string}> {
-    return Array.from(this.files.values()).map(file => ({
-      path: file.path,
-      name: file.name,
-      lastModified: file.lastModified.toISOString()
-    }));
-  }
-
-  getFile(filePath: string): NeovimFileInfo | null {
-    return this.files.get(filePath) || null;
-  }
-
-  async updateFileContent(filePath: string, content: string): Promise<boolean> {
-    const file = this.files.get(filePath);
-    if (!file) return false;
-
-    try {
-      const fullPath = path.join(this.workingDir, filePath);
-      await Bun.write(fullPath, content);
-
-      file.content = content;
-      file.lastModified = new Date();
-      this.files.set(filePath, file);
-
-      console.log(`💾 Updated file: ${filePath}`);
-      return true;
-    } catch (error) {
-      console.error(`Error updating file ${filePath}:`, error);
-      return false;
-    }
-  }
-
-  isNeovimConnected(): boolean {
-    return this.neovim.connected;
-  }
-
-  getNeovimStatus() {
-    return {
-      connected: this.neovim.connected,
-      pid: this.neovim.pid,
-      address: this.neovim.address
-    };
-  }
-
-  getPlaywrightStatus() {
-    return {
-      connected: this.playwright.connected,
-      pageUrl: this.playwright.page?.url() || null
-    };
-  }
-
-  async cleanup(): Promise<void> {
-    console.log("🧹 Cleaning up resources...");
-
-    // Close all file watchers
-    for (const watcher of this.watchers.values()) {
-      watcher?.close();
-    }
-    this.watchers.clear();
-
-    // Clean up Neovim RPC connection
-    if (this.neovim.client) {
-      try {
-        await this.neovim.client.quit();
-      } catch (error) {
-        console.error("Error closing Neovim client:", error);
-      }
-    }
-
-    // Clean up Playwright
-    if (this.playwright.browser) {
-      await this.playwright.browser.close();
-      this.playwright.connected = false;
-    }
-  }
-}
-
-// Initialize the file server
-const fileServer = new NeovimFileServer();
-
-// CORS headers for web integration
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-// Enhanced Bun server with FIXED static file serving and API endpoints
-const server = Bun.serve({
-  port: 3001,
-  cors: { origin: true },
-
-  async fetch(request) {
-    const url = new URL(request.url);
-
-    // Handle preflight requests
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders
+  private async handleNeovimAPI(request: Request, url: URL): Promise<Response> {
+    if (url.pathname === "/api/neovim/connect" && request.method === "POST") {
+      const success = await this.neovimManager.connectToNeovim();
+      return new Response(JSON.stringify({
+        success,
+        message: success ? "Connected to Neovim" : "Failed to connect to Neovim"
+      }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getCorsHeaders()
+        }
       });
     }
 
-    // FIXED: Check for static files FIRST (CSS, JS, images, etc.)
-    const staticResponse = await fileServer.serveStaticFile(url);
-    if (staticResponse) {
-      return staticResponse;
+    if (url.pathname === "/api/neovim/status") {
+      return new Response(JSON.stringify(this.neovimManager.getStatus()), {
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getCorsHeaders()
+        }
+      });
     }
 
-    // Playwright browser control endpoints
+    if (url.pathname === "/api/neovim/spawn" && request.method === "POST") {
+      const success = await this.neovimManager.spawnNewNeovim();
+      return new Response(JSON.stringify({
+        success,
+        message: success ? "Spawned new Neovim instance" : "Failed to spawn Neovim"
+      }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getCorsHeaders()
+        }
+      });
+    }
+
+    return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
+  }
+
+  private async handlePlaywrightAPI(request: Request, url: URL): Promise<Response> {
     if (url.pathname === "/api/browser/init" && request.method === "POST") {
-      const success = await fileServer.initPlaywright();
+      const success = await this.playwrightManager.initialize();
       return new Response(JSON.stringify({
         success,
         message: success ? "Browser initialized" : "Failed to initialize browser"
       }), {
         headers: {
           "Content-Type": "application/json",
-          ...corsHeaders
+          ...this.getCorsHeaders()
         }
       });
     }
@@ -580,19 +238,19 @@ const server = Bun.serve({
             status: 400,
             headers: {
               "Content-Type": "application/json",
-              ...corsHeaders
+              ...this.getCorsHeaders()
             }
           });
         }
 
-        const success = await fileServer.sendCodeToStrudel(code);
+        const success = await this.playwrightManager.sendCodeToStrudel(code);
         return new Response(JSON.stringify({
           success,
           message: success ? "Code sent to Strudel" : "Failed to send code"
         }), {
           headers: {
             "Content-Type": "application/json",
-            ...corsHeaders
+            ...this.getCorsHeaders()
           }
         });
       } catch (error) {
@@ -603,23 +261,49 @@ const server = Bun.serve({
           status: 500,
           headers: {
             "Content-Type": "application/json",
-            ...corsHeaders
+            ...this.getCorsHeaders()
           }
         });
       }
     }
 
-    // cURL-friendly endpoints for Neovim integration
+    if (url.pathname === "/api/browser/stop" && request.method === "POST") {
+      const success = await this.playwrightManager.stopStrudel();
+      return new Response(JSON.stringify({
+        success,
+        message: success ? "Stopped Strudel playback" : "Failed to stop playback"
+      }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getCorsHeaders()
+        }
+      });
+    }
+
+    if (url.pathname === "/api/browser/status") {
+      return new Response(JSON.stringify(this.playwrightManager.getStatus()), {
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getCorsHeaders()
+        }
+      });
+    }
+
+    return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
+  }
+
+  // cURL-friendly endpoints
+  private async handleCurlAPI(request: Request, url: URL): Promise<Response> {
     if (url.pathname === "/api/send-current-buffer" && request.method === "POST") {
       try {
         const body = await request.text();
-        const success = await fileServer.sendCodeToStrudel(body);
+        const success = await this.playwrightManager.sendCodeToStrudel(body);
 
         return new Response(success ? "✅ Code sent to Strudel" : "❌ Failed to send code", {
           status: success ? 200 : 500,
           headers: {
             "Content-Type": "text/plain",
-            ...corsHeaders
+            ...this.getCorsHeaders()
           }
         });
       } catch (error) {
@@ -627,127 +311,198 @@ const server = Bun.serve({
           status: 500,
           headers: {
             "Content-Type": "text/plain",
-            ...corsHeaders
+            ...this.getCorsHeaders()
           }
         });
       }
     }
 
-    // Neovim RPC API endpoints
-    if (url.pathname === "/api/neovim/connect" && request.method === "POST") {
-      const success = await fileServer.connectToNeovim();
-      return new Response(JSON.stringify({
-        success,
-        message: success ? "Connected to Neovim" : "Failed to connect to Neovim"
-      }), {
+    if (url.pathname === "/api/hush" && request.method === "POST") {
+      const success = await this.playwrightManager.stopStrudel();
+      return new Response(success ? "⏹️ Stopped Strudel" : "❌ Failed to stop", {
+        status: success ? 200 : 500,
         headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders
+          "Content-Type": "text/plain",
+          ...this.getCorsHeaders()
         }
       });
     }
 
-    if (url.pathname === "/api/neovim/status") {
-      return new Response(JSON.stringify(fileServer.getNeovimStatus()), {
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders
-        }
+    return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
+  }
+
+  // Health check endpoint
+  private async handleHealthAPI(): Promise<Response> {
+    const stats = this.fileManager.getStats();
+
+    return new Response(JSON.stringify({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      neovim: this.neovimManager.isConnected(),
+      browser: this.playwrightManager.isConnected(),
+      files: {
+        count: stats.totalFiles,
+        totalSize: stats.totalSize,
+        extensions: stats.extensions
+      },
+      config: {
+        port: this.config.port,
+        workingDir: this.config.workingDir
+      }
+    }), {
+      headers: {
+        "Content-Type": "application/json",
+        ...this.getCorsHeaders()
+      }
+    });
+  }
+
+  private async fetch(request: Request): Promise<Response> {
+
+    const url = new URL(request.url);
+
+    // Handle preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: this.getCorsHeaders()
       });
     }
 
-    // File API endpoints 
+    // Static files first
+    const staticResponse = await this.serveStaticFile(url);
+    if (staticResponse) {
+      return staticResponse;
+    }
+
+    // API routes
+    if (url.pathname.startsWith("/api/file")) {
+      return this.handleFileAPI(request, url);
+    }
+
+    if (url.pathname.startsWith("/api/neovim")) {
+      return this.handleNeovimAPI(request, url);
+    }
+
+    if (url.pathname.startsWith("/api/browser")) {
+      return this.handlePlaywrightAPI(request, url);
+    }
+
+    if (url.pathname.startsWith("/api/send-current-buffer") || url.pathname === "/api/hush") {
+      return this.handleCurlAPI(request, url);
+    }
+
     if (url.pathname === "/api/files") {
-      if (request.method === "GET") {
-        const files = fileServer.getFilesList();
-        return new Response(JSON.stringify(files), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders
-          }
-        });
-      }
-
-      if (request.method === "POST") {
-        // FIXED: Call the correct method name
-        await fileServer.scanNeovimBuffers();
-        return new Response(JSON.stringify({ success: true }), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders
-          }
-        });
-      }
+      return this.handleFileAPI(request, url);
     }
 
-    if (url.pathname.startsWith("/api/file/")) {
-      const filePath = decodeURIComponent(url.pathname.replace("/api/file/", ""));
-
-      if (request.method === "GET") {
-        const file = fileServer.getFile(filePath);
-        if (!file) {
-          return new Response(JSON.stringify({ error: "File not found" }), {
-            status: 404,
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders
-            }
-          });
-        }
-
-        return new Response(JSON.stringify(file), {
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders
-          }
-        });
-      }
+    if (url.pathname === "/health") {
+      return this.handleHealthAPI();
     }
 
-    // Serve the main Strudel integration page using imported HTML template
+    // Main Strudel page
     if (url.pathname === "/strudel" || url.pathname === "/") {
       return new Response(htmlTemplate, {
         headers: {
           "Content-Type": "text/html",
-          ...corsHeaders
-        }
-      });
-    }
-
-    // Health check endpoint
-    if (url.pathname === "/health") {
-      return new Response(JSON.stringify({
-        status: "ok",
-        neovim: fileServer.isNeovimConnected(),
-        browser: fileServer.getPlaywrightStatus().connected,
-        files: fileServer.getFilesList().length
-      }), {
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders
+          ...this.getCorsHeaders()
         }
       });
     }
 
     return new Response("Not Found", {
       status: 404,
-      headers: corsHeaders
+      headers: this.getCorsHeaders()
     });
-  },
-});
+  }
 
-// Graceful shutdown handling
-const cleanup = async () => {
-  console.log('\n🛑 Shutting down server...');
-  await fileServer.cleanup();
-  process.exit(0);
-};
+  // Initialize the server
+  async start(): Promise<void> {
+    try {
+      console.log("🚀 Starting Strudel Server...");
 
-process.on('SIGINT', cleanup);
-process.on('SIGTERM', cleanup);
+      // Scan initial files
+      await this.fileManager.scanLocalFiles();
 
-console.log(`🎵 Neovim + Strudel server running on http://localhost:${server.port}`);
-console.log(`🎹 Open http://localhost:${server.port}/strudel to use the integration`);
-console.log(`📁 Serving files from: ${fileServer.workingDir || process.cwd()}`);
-console.log(`📝 CSS will be served from: http://localhost:${server.port}/styles.css`);
-console.log(`\n💡 To connect Neovim, start it with: nvim --listen /tmp/nvim-socket`);
+      // Auto-start browser if configured
+      if (this.config.playwright?.autoStart) {
+        await this.playwrightManager.initialize();
+      }
+
+      // Start Bun server
+      this.server = Bun.serve({
+        port: this.config.port,
+        cors: { origin: true },
+        fetch: (req) => this.fetch(req),   // wrapper binds the context
+      });
+
+      console.log(`🎵 Strudel Server running on http://localhost:${this.config.port}`);
+      console.log(`🎹 Open http://localhost:${this.config.port}/strudel for the integration`);
+      console.log(`📁 Serving files from: ${this.config.workingDir}`);
+      console.log(`\n💡 To connect Neovim, start it with: nvim --listen /tmp/nvim-socket`);
+
+    } catch (error) {
+      console.error("❌ Failed to start server:", error);
+      throw error;
+    }
+  }
+
+  // Graceful shutdown
+  async stop(): Promise<void> {
+    console.log('\n🛑 Shutting down server...');
+
+    await Promise.all([
+      this.fileManager.cleanup(),
+      this.neovimManager.cleanup(),
+      this.playwrightManager.cleanup()
+    ]);
+
+    if (this.server) {
+      this.server.stop();
+    }
+
+    console.log("✅ Server shutdown completed");
+  }
+
+  // Getters for external access
+  get managers() {
+    return {
+      files: this.fileManager,
+      neovim: this.neovimManager,
+      playwright: this.playwrightManager
+    };
+  }
+
+  get status() {
+    return {
+      running: !!this.server,
+      port: this.config.port,
+      neovimConnected: this.neovimManager.isConnected(),
+      browserConnected: this.playwrightManager.isConnected(),
+      filesCount: this.fileManager.getFileCount()
+    };
+  }
+}
+
+// Main execution
+if (import.meta.main) {
+  const server = new StrudelServer({
+    port: 3001,
+    playwright: {
+      headless: false,
+      autoStart: false
+    }
+  });
+
+  // Graceful shutdown handling
+  const cleanup = async () => {
+    await server.stop();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
+
+  // Start the server
+  await server.start();
+}

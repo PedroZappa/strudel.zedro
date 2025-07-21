@@ -7,7 +7,8 @@ local M = {}
 M.config = {
   server_url = "http://localhost:3001",
   auto_init_browser = true,
-  show_notifications = true
+  show_notifications = true,
+  timeout = 5000  -- 5 second timeout for HTTP requests
 }
 
 -- Setup function
@@ -32,29 +33,68 @@ function M.setup(opts)
   end
 end
 
--- Helper function to make HTTP requests using curl
-local function curl_post(endpoint, data, callback)
+-- SOLUTION 1: Use Neovim's async vim.system() for HTTP requests (Neovim 0.10+)
+local function async_curl_post(endpoint, data, callback)
+  local url = M.config.server_url .. endpoint
+
+  -- Use vim.system for async HTTP requests (requires Neovim 0.10+)
+  vim.system({
+    'curl', '-s', '-X', 'POST',
+    '-H', 'Content-Type: text/plain',
+    '--data-binary', data,
+    '--max-time', tostring(M.config.timeout / 1000), -- Convert to seconds
+    url
+  }, {
+    text = true,
+    timeout = M.config.timeout,
+  }, function(obj)
+    local success = obj.code == 0
+    if callback then
+      -- Schedule callback to run in main thread
+      vim.schedule(function()
+        callback(success, obj.stdout or obj.stderr)
+      end)
+    end
+  end)
+end
+
+-- SOLUTION 2: Alternative using vim.fn.jobstart() for async requests (older Neovim versions)
+local function async_curl_post_job(endpoint, data, callback)
   local url = M.config.server_url .. endpoint
   local temp_file = vim.fn.tempname()
 
   -- Write data to temp file
   vim.fn.writefile(type(data) == "table" and data or {data}, temp_file)
 
-  -- Build curl command
-  local cmd = string.format(
-    "curl -s -X POST -H 'Content-Type: text/plain' --data-binary '@%s' %s",
-    temp_file, url
-  )
+  local cmd = {
+    'curl', '-s', '-X', 'POST',
+    '-H', 'Content-Type: text/plain',
+    '--data-binary', '@' .. temp_file,
+    '--max-time', tostring(M.config.timeout / 1000),
+    url
+  }
 
-  -- Execute curl command
-  vim.fn.system(cmd)
-  local exit_code = vim.v.shell_error
+  vim.fn.jobstart(cmd, {
+    on_exit = function(_, exit_code)
+      -- Clean up temp file
+      vim.fn.delete(temp_file)
 
-  -- Clean up temp file
-  vim.fn.delete(temp_file)
+      if callback then
+        vim.schedule(function()
+          callback(exit_code == 0)
+        end)
+      end
+    end,
+    timeout = M.config.timeout
+  })
+end
 
-  if callback then
-    callback(exit_code == 0)
+-- Choose the appropriate async function based on Neovim version
+local function curl_post_async(endpoint, data, callback)
+  if vim.fn.has('nvim-0.10') == 1 then
+    async_curl_post(endpoint, data, callback)
+  else
+    async_curl_post_job(endpoint, data, callback)
   end
 end
 
@@ -70,12 +110,16 @@ function M.send_buffer()
     return
   end
 
-  curl_post("/api/send-current-buffer", content, function(success)
+  if M.config.show_notifications then
+    vim.notify("🎵 Sending buffer to Strudel...", vim.log.levels.INFO)
+  end
+
+  curl_post_async("/api/send-current-buffer", content, function(success, response)
     if M.config.show_notifications then
       if success then
-        vim.notify("🎵 Buffer sent to Strudel!", vim.log.levels.INFO)
+        vim.notify("✅ Buffer sent to Strudel!", vim.log.levels.INFO)
       else
-        vim.notify("❌ Failed to send buffer", vim.log.levels.ERROR)
+        vim.notify("❌ Failed to send buffer: " .. (response or "Network error"), vim.log.levels.ERROR)
       end
     end
   end)
@@ -104,12 +148,16 @@ function M.send_selection()
 
   local content = table.concat(lines, "\n")
 
-  curl_post("/api/send-selection", content, function(success)
+  if M.config.show_notifications then
+    vim.notify("🎵 Sending selection to Strudel...", vim.log.levels.INFO)
+  end
+
+  curl_post_async("/api/send-selection", content, function(success, response)
     if M.config.show_notifications then
       if success then
-        vim.notify("🎵 Selection sent to Strudel!", vim.log.levels.INFO)
+        vim.notify("✅ Selection sent to Strudel!", vim.log.levels.INFO)
       else
-        vim.notify("❌ Failed to send selection", vim.log.levels.ERROR)
+        vim.notify("❌ Failed to send selection: " .. (response or "Network error"), vim.log.levels.ERROR)
       end
     end
   end)
@@ -117,12 +165,12 @@ end
 
 -- Stop Strudel playback
 function M.stop_strudel()
-  curl_post("/api/hush", "", function(success)
+  curl_post_async("/api/hush", "", function(success, response)
     if M.config.show_notifications then
       if success then
         vim.notify("⏹️  Strudel stopped", vim.log.levels.INFO)
       else
-        vim.notify("❌ Failed to stop Strudel", vim.log.levels.ERROR)
+        vim.notify("❌ Failed to stop Strudel: " .. (response or "Network error"), vim.log.levels.ERROR)
       end
     end
   end)
@@ -130,20 +178,20 @@ end
 
 -- Initialize browser
 function M.init_browser()
-  curl_post("/api/browser/init", "", function(success)
+  curl_post_async("/api/browser/init", "", function(success, response)
     if M.config.show_notifications then
       if success then
         vim.notify("🎭 Browser initialized", vim.log.levels.INFO)
       else
-        vim.notify("❌ Failed to initialize browser", vim.log.levels.ERROR)
+        vim.notify("❌ Failed to initialize browser: " .. (response or "Network error"), vim.log.levels.ERROR)
       end
     end
   end)
 end
 
--- Show server status
+-- Show server status (can remain sync as it's user-initiated)
 function M.show_status()
-  local cmd = string.format("curl -s %s/health", M.config.server_url)
+  local cmd = string.format("curl -s --max-time 3 %s/health", M.config.server_url)
   local result = vim.fn.system(cmd)
 
   if vim.v.shell_error == 0 then
@@ -161,10 +209,11 @@ function M.show_status()
   end
 end
 
--- Auto-initialization
+-- Auto-initialization with async handling
 if M.config.auto_init_browser then
-  vim.defer_fn(M.init_browser, 1000) -- Wait 1 second after loading
+  vim.defer_fn(function()
+    M.init_browser()
+  end, 1000) -- Wait 1 second after loading
 end
 
 return M
-
