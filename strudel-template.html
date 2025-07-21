@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Neovim ↔ Strudel.cc Integration</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div id="sidebar">
+    <div id="header">
+      <h2>
+        <span id="status-indicator" class="status-indicator status-disconnected"></span>
+        Neovim Files
+      </h2>
+    </div>
+
+    <div id="controls">
+      <button onclick="connectToNeovim()" id="connect-btn">🔌 Connect to Neovim</button>
+      <button onclick="refreshFiles()" id="refresh-btn">🔄 Refresh</button>
+      <button onclick="openNewNeovim()" id="new-nvim-btn">📝 New Neovim</button>
+    </div>
+
+    <div id="files"></div>
+
+    <div id="file-preview" style="display: none;">
+      <!-- File content preview -->
+    </div>
+
+    <button id="copy-btn" onclick="copyFileText()" style="display: none;">
+      📋 Copy to Clipboard
+    </button>
+
+    <div id="instructions">
+      <strong>📚 Instructions:</strong><br>
+      1. Connect to a running Neovim instance<br>
+      2. Select a file to preview<br>
+      3. Copy code and paste into Strudel REPL →<br>
+      4. Use <strong>Share</strong> to generate URLs
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@strudel/repl@1.0.3"></script>
+  <strudel-editor>
+    <!--
+...  
+-->
+  </strudel-editor>
+
+  <script>
+    let files = [];
+    let selectedFile = null;
+    let neovimConnected = false;
+
+    // Initialize the application
+    async function init() {
+      await checkNeovimConnection();
+      await refreshFiles();
+      startAutoRefresh();
+    }
+
+    // Check Neovim connection status
+    async function checkNeovimConnection() {
+      try {
+        const resp = await fetch('/api/neovim/status');
+        const status = await resp.json();
+        neovimConnected = status.connected;
+        updateConnectionStatus();
+      } catch (error) {
+        console.error('Failed to check Neovim connection:', error);
+        neovimConnected = false;
+        updateConnectionStatus();
+      }
+    }
+
+    // Update UI based on connection status
+    function updateConnectionStatus() {
+      const indicator = document.getElementById('status-indicator');
+      const connectBtn = document.getElementById('connect-btn');
+
+      if (neovimConnected) {
+        indicator.className = 'status-indicator status-connected';
+        connectBtn.textContent = '✅ Connected';
+        connectBtn.disabled = true;
+      } else {
+        indicator.className = 'status-indicator status-disconnected';
+        connectBtn.textContent = '🔌 Connect to Neovim';
+        connectBtn.disabled = false;
+      }
+    }
+
+    // Connect to Neovim
+    async function connectToNeovim() {
+      const connectBtn = document.getElementById('connect-btn');
+      connectBtn.textContent = 'Connecting...';
+      connectBtn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/neovim/connect', {method: 'POST'});
+        const result = await resp.json();
+
+        if (result.success) {
+          neovimConnected = true;
+          await refreshFiles();
+        } else {
+          alert('Failed to connect to Neovim: ' + (result.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Connection error:', error);
+        alert('Connection failed: ' + error.message);
+      }
+
+      updateConnectionStatus();
+    }
+
+    // Open new Neovim instance  
+    async function openNewNeovim() {
+      try {
+        const resp = await fetch('/api/neovim/spawn', {method: 'POST'});
+        const result = await resp.json();
+
+        if (result.success) {
+          setTimeout(() => {
+            connectToNeovim();
+          }, 2000); // Give Neovim time to start
+        } else {
+          alert('Failed to start Neovim: ' + (result.error || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Failed to spawn Neovim:', error);
+        alert('Failed to start Neovim: ' + error.message);
+      }
+    }
+
+    // Refresh files from server
+    async function refreshFiles() {
+      if (!neovimConnected) {
+        renderEmptyState();
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/files');
+        files = await resp.json();
+        renderFiles();
+      } catch (error) {
+        console.error('Failed to refresh files:', error);
+        renderEmptyState('Failed to load files');
+      }
+    }
+
+    // Render files list
+    function renderFiles() {
+      const filesEl = document.getElementById('files');
+
+      if (!files.length) {
+        renderEmptyState('No files found in Neovim session');
+        return;
+      }
+
+      filesEl.innerHTML = files.map(file => `
+        <div class="file${file.path === selectedFile?.path ? ' selected' : ''}" 
+             onclick="selectFile('${file.path}')" 
+             data-path="${file.path}">
+          <div class="file-name">${file.name}</div>
+          <div class="file-path">${file.path}</div>
+          <div class="file-modified">Modified: ${new Date(file.lastModified).toLocaleString()}</div>
+        </div>
+      `).join('');
+    }
+
+    // Render empty state
+    function renderEmptyState(message = 'Connect to Neovim to view files') {
+      const filesEl = document.getElementById('files');
+      filesEl.innerHTML = `
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          </svg>
+          <div>${message}</div>
+        </div>
+      `;
+    }
+
+    // Select and preview a file
+    async function selectFile(filePath) {
+      try {
+        const resp = await fetch('/api/file/' + encodeURIComponent(filePath));
+        const file = await resp.json();
+
+        selectedFile = file;
+        renderFiles();
+
+        const previewEl = document.getElementById('file-preview');
+        const copyBtn = document.getElementById('copy-btn');
+
+        previewEl.textContent = file.content;
+        previewEl.style.display = 'block';
+        copyBtn.style.display = 'block';
+
+      } catch (error) {
+        console.error('Failed to load file:', error);
+        alert('Failed to load file: ' + error.message);
+      }
+    }
+
+    // Copy file content to clipboard
+    function copyFileText() {
+      if (!selectedFile) return;
+
+      navigator.clipboard.writeText(selectedFile.content).then(() => {
+        const copyBtn = document.getElementById('copy-btn');
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '✅ Copied!';
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+        }, 2000);
+      }).catch(error => {
+        console.error('Failed to copy:', error);
+        alert('Failed to copy to clipboard');
+      });
+    }
+
+    // Auto-refresh every 5 seconds if connected
+    function startAutoRefresh() {
+      setInterval(async () => {
+        if (neovimConnected) {
+          await refreshFiles();
+        }
+      }, 5000);
+    }
+
+    // Initialize when page loads
+    window.addEventListener('load', init);
+  </script>
+</body>
+
+</html>

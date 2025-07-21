@@ -1,0 +1,35 @@
+{
+  "name": "neovim-strudel-server",
+  "version": "1.0.0",
+  "description": "Bun server for serving Neovim files to strudel.cc REPL with Playwright browser automation",
+  "main": "server.ts",
+  "scripts": {
+    "start": "bun run server.ts",
+    "dev": "bun --hot run server.ts",
+    "playwright:install": "bunx playwright install chromium"
+  },
+  "keywords": [
+    "bun",
+    "neovim",
+    "strudel",
+    "typescript",
+    "live-coding",
+    "music",
+    "playwright",
+    "browser-automation"
+  ],
+  "author": "Zedro",
+  "license": "MIT",
+  "dependencies": {
+    "neovim": "^4.10.1",
+    "find-process": "^1.4.7",
+    "playwright": "^1.40.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
