@@ -3,37 +3,43 @@
 
 local M = {}
 
--- Configuration
+-- Add this to your M.config
 M.config = {
-  server_url = "http://localhost:3001",
-  auto_init_browser = true,
-  show_notifications = true,
-  timeout = 5000  -- 5 second timeout for HTTP requests
+    server_url = "http://localhost:3001",
+    auto_init_browser = true,
+    show_notifications = true,
+    timeout = 5000,
+    nvim_socket = "/tmp/strudel-nvim-socket"  -- Add socket path
 }
 
--- Setup function
-function M.setup(opts)
-  M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+-- Add this function to create/ensure socket server
+function M.ensure_socket_server()
+    -- Check if we already have a server running
+    local existing_server = vim.v.servername
+    if existing_server and existing_server ~= "" then
+        if M.config.show_notifications then
+            vim.notify("🔌 Using existing Neovim server: " .. existing_server, vim.log.levels.INFO)
+        end
+        return existing_server
+    end
 
-  -- Create user commands
-  vim.api.nvim_create_user_command('StrudelSendBuffer', M.send_buffer, {})
-  vim.api.nvim_create_user_command('StrudelSendSelection', M.send_selection, {})
-  vim.api.nvim_create_user_command('StrudelStop', M.stop_strudel, {})
-  vim.api.nvim_create_user_command('StrudelInit', M.init_browser, {})
-  vim.api.nvim_create_user_command('StrudelStatus', M.show_status, {})
+    -- Start a new server
+    local socket_path = M.config.nvim_socket
+    local server_name = vim.fn.serverstart(socket_path)
 
-  -- Default key mappings (can be overridden by user)
-  vim.keymap.set('n', '<leader>ss', M.send_buffer, { desc = 'Send buffer to Strudel' })
-  vim.keymap.set('v', '<leader>ss', M.send_selection, { desc = 'Send selection to Strudel' })
-  vim.keymap.set('n', '<leader>sh', M.stop_strudel, { desc = 'Stop Strudel (hush)' })
-  vim.keymap.set('n', '<leader>si', M.init_browser, { desc = 'Initialize Strudel browser' })
-
-  if M.config.show_notifications then
-    vim.notify("Strudel integration loaded! Use <leader>ss to send code", vim.log.levels.INFO)
-  end
+    if server_name then
+        if M.config.show_notifications then
+            vim.notify("🚀 Started Neovim server: " .. server_name, vim.log.levels.INFO)
+        end
+        return server_name
+    else
+        if M.config.show_notifications then
+            vim.notify("❌ Failed to start Neovim server", vim.log.levels.ERROR)
+        end
+        return nil
+    end
 end
 
--- SOLUTION 1: Use Neovim's async vim.system() for HTTP requests (Neovim 0.10+)
 local function async_curl_post(endpoint, data, callback)
   local url = M.config.server_url .. endpoint
 
@@ -98,6 +104,7 @@ local function curl_post_async(endpoint, data, callback)
   end
 end
 
+--
 -- Send current buffer to Strudel
 function M.send_buffer()
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
@@ -209,11 +216,28 @@ function M.show_status()
   end
 end
 
--- Auto-initialization with async handling
-if M.config.auto_init_browser then
-  vim.defer_fn(function()
-    M.init_browser()
-  end, 1000) -- Wait 1 second after loading
+-- Modify your setup function to ensure socket server
+function M.setup(opts)
+    M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+
+    -- Ensure socket server is running
+    M.ensure_socket_server()
+
+    -- Rest of your existing setup code...
+    vim.api.nvim_create_user_command('StrudelSendBuffer', M.send_buffer, {})
+    vim.api.nvim_create_user_command('StrudelSendSelection', M.send_selection, {})
+    vim.api.nvim_create_user_command('StrudelStop', M.stop_strudel, {})
+    vim.api.nvim_create_user_command('StrudelInit', M.init_browser, {})
+    vim.api.nvim_create_user_command('StrudelStatus', M.show_status, {})
+
+    vim.keymap.set('n', 'ss', M.send_buffer, { desc = 'Send buffer to Strudel' })
+    vim.keymap.set('v', 'ss', M.send_selection, { desc = 'Send selection to Strudel' })
+    vim.keymap.set('n', 'sh', M.stop_strudel, { desc = 'Stop Strudel (hush)' })
+    vim.keymap.set('n', 'si', M.init_browser, { desc = 'Initialize Strudel browser' })
+
+    if M.config.show_notifications then
+        vim.notify("Strudel integration loaded! Socket: " .. (vim.v.servername or "none"), vim.log.levels.INFO)
+    end
 end
 
-return M
+return M 

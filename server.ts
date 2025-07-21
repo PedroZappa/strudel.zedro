@@ -3,6 +3,7 @@ import path from "path";
 import { FileManager } from "./file-manager";
 import { NeovimManager } from "./neovim-manager";
 import { PlaywrightManager } from "./playwright-manager";
+import type { Server } from "bun";
 
 // Import HTML template
 import htmlTemplate from "./strudel-template.html" with { type: "text" };
@@ -22,7 +23,7 @@ export class StrudelServer {
   private fileManager: FileManager;
   private neovimManager: NeovimManager;
   private playwrightManager: PlaywrightManager;
-  private server?: any;
+  private server?: Server;
 
   constructor(config: Partial<ServerConfig> = {}) {
     this.config = {

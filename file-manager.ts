@@ -28,7 +28,7 @@ export class FileManager {
   // Scan local files using patterns
   async scanLocalFiles(options: FileWatchOptions = {}): Promise<void> {
     const {
-      patterns = ["**/*.strudel", "**/*.strdl", "**/*.js", "**/*.ts", "**/*.mjs"],
+      patterns = ["**/*.strudel", "**/*.strdl"],
       excludeDirs = ["node_modules", ".git", "dist", "build"],
     } = options;
 

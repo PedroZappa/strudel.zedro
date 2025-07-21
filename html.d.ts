@@ -16,7 +16,10 @@ declare module "find-process" {
     bin?: string;
   }
 
-  function find(type: 'pid' | 'port' | 'name', value: string | number | RegExp, strict?: boolean): Promise<ProcessInfo[]>;
+  function find(
+    type: 'pid' | 'port' | 'name',
+    value: string | number | RegExp,
+    strict?: boolean): Promise<ProcessInfo[]>;
   export = find;
 }
 

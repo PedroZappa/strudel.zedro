@@ -1,4 +1,4 @@
-// playwright-manager.ts - Fixed version with better error handling and direct code injection
+// playwright-manager.ts
 
 import type { Browser, Page, BrowserContext } from 'playwright';
 import { chromium } from 'playwright';
@@ -54,26 +54,33 @@ export class PlaywrightManager {
     if (!this.page) throw new Error('Page not initialized');
 
     try {
-      // Wait for CodeMirror editor to be present
       console.log('⏳ Waiting for Strudel REPL to load...');
 
-      const REPL_SELECTOR = [
-        'strudel-repl >>> .cm-editor',
-        'strudel-repl >>> .CodeMirror',
-        'iframe[src*="strudel"] >> .cm-editor',
-        'iframe[src*="strudel"] >> .CodeMirror',
-        'strudel-editor >>> .cm-editor'
-      ].join(', ');
-      
-      // Wait for either CodeMirror v5 or v6 editor
-      await this.page.waitForSelector(REPL_SELECTOR, { timeout: 30000 });
+      // Step 1: Wait for the strudel-repl web component to appear
+      await this.page.waitForSelector('repl', { timeout: 10000 });
+      console.log('✅ Strudel web component found');
 
-      // Additional wait for Strudel context to be ready
-      await this.page.waitForFunction(() => {
-        return typeof window !== 'undefined' &&
-          (window.hasOwnProperty('repl') ||
-            document.querySelector('.cm-editor, .CodeMirror'));
-      }, { timeout: 30000 });
+      // Step 2: Get the iframe inside the strudel-repl shadow DOM
+      const strudelFrame = this.page.frameLocator('repl >>> iframe');
+
+      // Step 3: Wait for the iframe to load and CodeMirror to be ready
+      await strudelFrame.locator('.cm-editor, .CodeMirror').waitFor({ timeout: 30000 });
+      console.log('✅ CodeMirror found inside iframe');
+
+      // Step 4: Ensure Strudel is fully initialized
+      await strudelFrame.evaluate(() => {
+        return new Promise((resolve) => {
+          const checkReady = () => {
+            // Look for either Strudel context or CodeMirror
+            if (window.ctx || document.querySelector('.cm-editor, .CodeMirror')) {
+              resolve(true);
+            } else {
+              setTimeout(checkReady, 100);
+            }
+          };
+          checkReady();
+        });
+      });
 
       console.log('✅ Strudel REPL is ready');
 
