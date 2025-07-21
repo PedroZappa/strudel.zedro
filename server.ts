@@ -196,19 +196,6 @@ export class StrudelServer {
       });
     }
 
-    if (url.pathname === "/api/neovim/spawn" && request.method === "POST") {
-      const success = await this.neovimManager.spawnNewNeovim();
-      return new Response(JSON.stringify({
-        success,
-        message: success ? "Spawned new Neovim instance" : "Failed to spawn Neovim"
-      }), {
-        headers: {
-          "Content-Type": "application/json",
-          ...this.getCorsHeaders()
-        }
-      });
-    }
-
     return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
   }
 
@@ -440,7 +427,7 @@ export class StrudelServer {
       console.log(`🎵 Strudel Server running on http://localhost:${this.config.port}`);
       console.log(`🎹 Open http://localhost:${this.config.port}/strudel for the integration`);
       console.log(`📁 Serving files from: ${this.config.workingDir}`);
-      console.log(`\n💡 To connect Neovim, start it with: nvim --listen /tmp/nvim-socket`);
+      console.log(`\n💡 To connect Neovim, start it with: nvim --listen /tmp/strudel-nvim-socket`);
 
     } catch (error) {
       console.error("❌ Failed to start server:", error);

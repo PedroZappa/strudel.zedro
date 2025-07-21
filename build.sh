@@ -103,7 +103,7 @@ bun build \
     --target=bun \
     --outdir=dist \
     --sourcemap=external \
-    refactored-server.ts
+    server.ts
 
 if [ $? -eq 0 ]; then
     success "Main server built successfully"
@@ -114,7 +114,7 @@ fi
 
 # Copy static assets
 info "Copying static assets..."
-cp refactored-template.html dist/template.html
+cp template.html dist/template.html
 cp styles.css dist/styles.css 2>/dev/null || warning "styles.css not found, skipping"
 cp *.md dist/ 2>/dev/null || warning "No markdown files found"
 
@@ -133,9 +133,9 @@ cat > dist/package.json << EOF
   "name": "neovim-strudel-server",
   "version": "2.0.0",
   "type": "module",
-  "main": "refactored-server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "bun run refactored-server.js"
+    "start": "bun run server.js"
   },
   "dependencies": {
     "neovim": "^4.10.1",
