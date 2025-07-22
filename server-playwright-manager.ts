@@ -62,7 +62,6 @@ export class PlaywrightManager {
     try {
       console.log('⏳ Waiting for iframe to load...');
 
-      // FIXED: Wait for the actual iframe with class 'repl'
       await this.page.waitForSelector('iframe.repl', { timeout: 10000 });
       console.log('✅ Iframe found');
 
@@ -72,20 +71,6 @@ export class PlaywrightManager {
       // Wait for Strudel to load inside the iframe
       await strudelFrame.locator('.cm-editor').waitFor({ timeout: 30000 });
       console.log('✅ CodeMirror found inside iframe');
-
-      // Ensure Strudel is fully initialized
-      await strudelFrame.evaluate(() => {
-        return new Promise((resolve) => {
-          const checkReady = () => {
-            if (window.ctx || document.querySelector('.cm-editor')) {
-              resolve(true);
-            } else {
-              setTimeout(checkReady, 100);
-            }
-          };
-          checkReady();
-        });
-      });
 
       console.log('✅ Strudel iframe REPL is ready');
     } catch (error) {
@@ -104,8 +89,6 @@ export class PlaywrightManager {
       console.log('📤 Sending code to Strudel REPL...');
       console.log(`Code length: ${code.length} characters`);
 
-      // SOLUTION: Use JavaScript evaluation instead of clicking
-      // This bypasses any modal/overlay issues completely
       const success = await this.page.evaluate((codeToSet) => {
         try {
           // Method 1: Try CodeMirror 6 (newer Strudel versions)

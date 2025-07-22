@@ -1,8 +1,8 @@
 // server/main-server.ts - Refactored main server with modular architecture
 import path from "path";
-import { FileManager } from "./file-manager";
-import { NeovimManager } from "./neovim-manager";
-import { PlaywrightManager } from "./playwright-manager";
+import { FileManager } from "./server-file-manager";
+import { NeovimManager } from "./server-neovim-manager";
+import { PlaywrightManager } from "./server-playwright-manager";
 import type { Server } from "bun";
 
 // Import HTML template

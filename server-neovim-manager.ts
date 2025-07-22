@@ -4,7 +4,7 @@ import { attach, NeovimClient } from "neovim";
 import { createConnection } from "net";
 import path from "path";
 import fs from "fs";
-import { FileManager } from "./file-manager";
+import { FileManager } from "./server-file-manager";
 
 export interface NeovimInstance {
   process?: ChildProcess;

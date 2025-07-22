@@ -1,14 +1,14 @@
 {
   "name": "neovim-strudel-server",
   "version": "2.0.0",
-  "description": "Refactored Neovim + Strudel integration server with modular TypeScript architecture",
+  "description": "Neovim + Strudel integration server with modular TypeScript architecture",
   "type": "module",
   "main": "dist/server/main-server.js",
   "scripts": {
-    "dev": "bun run server.ts",
-    "build": "bun build --target=bun --outdir=dist --sourcemap=external server.ts client-app.ts client-api.ts client-ui.ts client-types.ts file-manager.ts neovim-manager.ts playwright-manager.ts",
+    "dev": "bun run --watch server.ts",
+    "build": "bun build --target=bun --outdir=dist --sourcemap=external server.ts client-app.ts client-api.ts client-ui.ts client-types.ts server-file-manager.ts server-neovim-manager.ts server-playwright-manager.ts",
     "build:client": "bun build --target=browser --outdir=dist/client client-app.ts client-api.ts client-ui.ts client-types.ts",
-    "build:server": "bun build --target=bun --outdir=dist/server server.ts file-manager.ts neovim-manager.ts playwright-manager.ts",
+    "build:server": "bun build --target=bun --outdir=dist/server server.ts server-file-manager.ts server-neovim-manager.ts server-playwright-manager.ts",
     "start": "bun run dist/server.js",
     "clean": "rm -rf dist build",
     "type-check": "tsc --noEmit",
@@ -49,7 +49,7 @@
     "playwright",
     "rpc"
   ],
-  "author": "Strudel Integration Team",
+  "author": "Zedro",
   "license": "MIT",
   "repository": {
     "type": "git",
