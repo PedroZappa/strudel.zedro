@@ -61,15 +61,6 @@ export class StrudelServer {
       '.strdl': 'text/strdl',
       '.json': 'application/json',
       '.css': 'text/css',
-      // '.js': 'application/javascript',
-      // '.ts': 'application/typescript',
-      // '.html': 'text/html',
-      // '.png': 'image/png',
-      // '.jpg': 'image/jpeg',
-      // '.jpeg': 'image/jpeg',
-      // '.gif': 'image/gif',
-      // '.svg': 'image/svg+xml',
-      // '.ico': 'image/x-icon',
     };
 
     const ext = path.extname(filePath).toLowerCase();
@@ -404,7 +395,7 @@ export class StrudelServer {
     });
   }
 
-  // Initialize the server
+  // In server.ts
   async start(): Promise<void> {
     try {
       console.log("🚀 Starting Strudel Server...");
@@ -412,19 +403,23 @@ export class StrudelServer {
       // Scan initial files
       await this.fileManager.scanLocalFiles();
 
-      // Auto-start browser if configured
+      // Start Bun server first
+      this.server = Bun.serve({
+        port: this.config.port,
+        cors: { origin: true },
+        fetch: (req) => this.fetch(req),
+      });
+
+      console.log(`🎵 Strudel Server running on http://localhost:${this.config.port}`);
+
+      // Wait for server to be ready before starting Playwright
+      await this.waitForServerReady();
+
+      // Now start Playwright after server is confirmed ready
       if (this.config.playwright?.autoStart) {
         await this.playwrightManager.initialize();
       }
 
-      // Start Bun server
-      this.server = Bun.serve({
-        port: this.config.port,
-        cors: { origin: true },
-        fetch: (req) => this.fetch(req),   // wrapper binds the context
-      });
-
-      console.log(`🎵 Strudel Server running on http://localhost:${this.config.port}`);
       console.log(`🎹 Open http://localhost:${this.config.port}/strudel for the integration`);
       console.log(`📁 Serving files from: ${this.config.workingDir}`);
       console.log(`\n💡 To connect Neovim, start it with: nvim --listen /tmp/strudel-nvim-socket`);
@@ -433,6 +428,29 @@ export class StrudelServer {
       console.error("❌ Failed to start server:", error);
       throw error;
     }
+  }
+
+  // Add this new method to wait for server readiness
+  private async waitForServerReady(): Promise<void> {
+    const maxRetries = 10;
+    const retryDelay = 100; // ms
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        // Try to make a simple request to the health endpoint
+        const response = await fetch(`http://localhost:${this.config.port}/health`);
+        if (response.ok) {
+          console.log("✅ Server is ready and responding");
+          return;
+        }
+      } catch (error) {
+        // Server not ready yet, wait and retry
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      }
+    }
+    throw new Error("Server failed to become ready within timeout period");
   }
 
   // Graceful shutdown

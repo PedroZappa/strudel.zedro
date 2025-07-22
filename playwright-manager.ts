@@ -16,32 +16,21 @@ export class PlaywrightManager {
 
   async initialize(): Promise<boolean> {
     try {
-      console.log('🚀 Initializing Playwright browser...');
-
+      console.log('🚀 Initializing Playwright browser…');
       this.browser = await chromium.launch({
-        headless: false,  // Keep visible for debugging
+        headless: false,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
-
-      this.context = await this.browser.newContext({
-        viewport: { width: 1280, height: 720 }
-      });
-
+      this.context = await this.browser.newContext({ viewport: { width: 1280, height: 720 } });
       this.page = await this.context.newPage();
+      this.page.setDefaultTimeout(60_000);
 
-      // Set longer timeout for initial page load
-      this.page.setDefaultTimeout(60000);
-
-      // Navigate to Strudel REPL
       console.log(`📱 Navigating to ${this.strudelUrl}/strudel`);
-      await this.page.goto(`${this.strudelUrl}/strudel`);
-
-      // Wait for Strudel REPL to be ready
+      await this.navigateWithRetry();                // ← robust navigation
       await this.waitForStrudelReady();
 
       this.isInitialized = true;
       console.log('✅ Playwright browser ready and targeting Strudel REPL');
-
       return true;
     } catch (error) {
       console.error('❌ Failed to initialize Playwright:', error);
@@ -50,29 +39,45 @@ export class PlaywrightManager {
     }
   }
 
+  private async navigateWithRetry(max = 4) {
+    for (let attempt = 1; attempt <= max; ++attempt) {
+      try {
+        await this.page!.goto(`${this.strudelUrl}/strudel`, {
+          waitUntil: 'domcontentloaded',
+          timeout: 30_000
+        });
+        return;                                      // 🎉 success
+      } catch (err) {
+        if (attempt === max) throw err;              // exhausted retries
+        const backoff = 500 * attempt;               // linear back-off
+        console.warn(`Navigation failed – retrying in ${backoff} ms …`);
+        await new Promise(r => setTimeout(r, backoff));
+      }
+    }
+  }
+
   private async waitForStrudelReady(): Promise<void> {
     if (!this.page) throw new Error('Page not initialized');
 
     try {
-      console.log('⏳ Waiting for Strudel REPL to load...');
+      console.log('⏳ Waiting for iframe to load...');
 
-      // Step 1: Wait for the strudel-repl web component to appear
-      await this.page.waitForSelector('repl', { timeout: 10000 });
-      console.log('✅ Strudel web component found');
+      // FIXED: Wait for the actual iframe with class 'repl'
+      await this.page.waitForSelector('iframe.repl', { timeout: 10000 });
+      console.log('✅ Iframe found');
 
-      // Step 2: Get the iframe inside the strudel-repl shadow DOM
-      const strudelFrame = this.page.frameLocator('repl >>> iframe');
+      // FIXED: Get the iframe using correct frameLocator
+      const strudelFrame = this.page.frameLocator('iframe.repl');
 
-      // Step 3: Wait for the iframe to load and CodeMirror to be ready
-      await strudelFrame.locator('.cm-editor, .CodeMirror').waitFor({ timeout: 30000 });
+      // Wait for Strudel to load inside the iframe
+      await strudelFrame.locator('.cm-editor').waitFor({ timeout: 30000 });
       console.log('✅ CodeMirror found inside iframe');
 
-      // Step 4: Ensure Strudel is fully initialized
+      // Ensure Strudel is fully initialized
       await strudelFrame.evaluate(() => {
         return new Promise((resolve) => {
           const checkReady = () => {
-            // Look for either Strudel context or CodeMirror
-            if (window.ctx || document.querySelector('.cm-editor, .CodeMirror')) {
+            if (window.ctx || document.querySelector('.cm-editor')) {
               resolve(true);
             } else {
               setTimeout(checkReady, 100);
@@ -82,10 +87,9 @@ export class PlaywrightManager {
         });
       });
 
-      console.log('✅ Strudel REPL is ready');
-
+      console.log('✅ Strudel iframe REPL is ready');
     } catch (error) {
-      console.error('❌ Strudel REPL failed to load properly:', error);
+      console.error('❌ Strudel iframe failed to load properly:', error);
       throw error;
     }
   }
