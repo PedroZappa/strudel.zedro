@@ -410,10 +410,11 @@ export class StrudelServer {
         fetch: (req) => this.fetch(req),
       });
 
-      console.log(`🎵 Strudel Server running on http://localhost:${this.config.port}`);
+      console.log(`🎵 Strudel Server running!`);
 
       // Wait for server to be ready before starting Playwright
       await this.waitForServerReady();
+      console.log("✅ Server is ready");
 
       // Now start Playwright after server is confirmed ready
       if (this.config.playwright?.autoStart) {
@@ -422,7 +423,12 @@ export class StrudelServer {
 
       console.log(`🎹 Open http://localhost:${this.config.port}/strudel for the integration`);
       console.log(`📁 Serving files from: ${this.config.workingDir}`);
-      console.log(`\n💡 To connect Neovim, start it with: nvim --listen /tmp/strudel-nvim-socket`);
+
+      // Search for a listening nvim socket /tmp/strudel-nvim-socket
+      await this.neovimManager.connectToNeovim();
+
+      console.log(`\n💡 To connect Neovim, start it with:`);
+      console.log(`\tnvim --listen /tmp/strudel-nvim-socket`);
 
     } catch (error) {
       console.error("❌ Failed to start server:", error);

@@ -38,7 +38,7 @@ It allows a user to write code in a local Neovim instance and send it directly t
 
 ### Key Technologies
 
-*   **Runtime**: Bun
+*   **Runtime**: [Bun](https://bun.sh/)
 *   **Language**: TypeScript
 *   **Server**: Bun's native HTTP server
 *   **Browser Automation**: Playwright

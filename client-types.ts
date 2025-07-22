@@ -8,6 +8,8 @@ export interface FileInfo {
   bufnr?: number;
 }
 
+export interface UnusedInterface { } // Automatically removed
+
 export interface NeovimStatus {
   connected: boolean;
   pid?: number;

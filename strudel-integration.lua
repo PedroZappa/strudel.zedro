@@ -64,7 +64,7 @@ local function async_curl_post(endpoint, data, callback)
   end)
 end
 
--- SOLUTION 2: Alternative using vim.fn.jobstart() for async requests (older Neovim versions)
+--  vim.fn.jobstart() for async requests (older Neovim versions)
 local function async_curl_post_job(endpoint, data, callback)
   local url = M.config.server_url .. endpoint
   local temp_file = vim.fn.tempname()

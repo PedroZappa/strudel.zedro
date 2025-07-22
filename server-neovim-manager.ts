@@ -24,11 +24,69 @@ export class NeovimManager {
   private neovim: NeovimInstance = { connected: false };
   private fileManager: FileManager;
   private workingDir: string;
+  private socketFiles: string[] = [];
 
   constructor(fileManager: FileManager, workingDir: string = process.cwd()) {
     this.fileManager = fileManager;
     this.workingDir = workingDir;
     this.neovim = { connected: false };
+
+    this.findSocketFiles = this.findSocketFiles;
+    this.testSocketConnection.bind(this);
+  }
+
+  private async validateSocketFile(socketPath: string): Promise<{ valid: boolean, reason?: string }> {
+    try {
+      // Check file existence
+      if (!fs.existsSync(socketPath)) {
+        return { valid: false, reason: "Socket file does not exist" };
+      }
+
+      // Verify it's actually a socket
+      const stat = fs.statSync(socketPath);
+      if (!stat.isSocket()) {
+        return { valid: false, reason: "File exists but is not a socket" };
+      }
+
+      // Check permissions
+      try {
+        fs.accessSync(socketPath, fs.constants.R_OK | fs.constants.W_OK);
+      } catch {
+        return { valid: false, reason: "Permission denied accessing socket" };
+      }
+
+      return { valid: true };
+    } catch (error) {
+      return { valid: false, reason: `Validation error: ${error.message}` };
+    }
+  }
+
+  private async printConnectionDiagnostics(): Promise<void> {
+    console.log("\n🔍 CONNECTION DIAGNOSTICS:");
+    console.log("=".repeat(40));
+
+    // Check if Neovim processes are running
+    try {
+      const { execSync } = require('child_process');
+      const processes = execSync('pgrep -f nvim', { encoding: 'utf8' }).trim();
+      console.log("📊 Neovim processes:", processes ? processes.split('\n') : 'None found');
+    } catch {
+      console.log("⚠️  Could not detect Neovim processes");
+    }
+
+    // Check socket directory contents
+    try {
+      const socketFiles = fs.readdirSync('/tmp').filter(f =>
+        f.includes('nvim') || f.includes('strudel')
+      );
+      console.log("📁 Relevant files in /tmp:", socketFiles);
+    } catch {
+      console.log("⚠️  Could not scan /tmp directory");
+    }
+
+    console.log("💻 System:", process.platform);
+    console.log("👤 User:", process.env.USER || 'unknown');
+    console.log("=".repeat(40));
   }
 
   // Find existing Neovim socket files
@@ -36,7 +94,7 @@ export class NeovimManager {
     const possibleSockets = [
       ...preferredSockets,
       "/tmp/strudel-nvim-socket",
-      "/tmp/nvim-socket", 
+      "/tmp/nvim-socket",
       "/tmp/nvim",
       ...this.findTmpNvimSockets(),
       process.env.NVIM_LISTEN_ADDRESS
@@ -94,7 +152,7 @@ export class NeovimManager {
       try {
         console.log(`🧪 Testing socket connection: ${socketPath}`);
         const socket = createConnection(socketPath);
-        
+
         const timeoutId = setTimeout(() => {
           socket.destroy();
           console.log(`⏰ Socket test timeout: ${socketPath}`);
@@ -124,25 +182,28 @@ export class NeovimManager {
 
   // Main connection method - simplified and more reliable
   async connectToNeovim(options: NeovimConnectionOptions = {}): Promise<boolean> {
-    const { timeout = 3000, retryAttempts = 2, preferredSockets = [] } = options;
+    const {
+      timeout = 5000,
+      retryAttempts = 3,
+      preferredSockets = ['/tmp/strudel-nvim-socket']
+    } = options;
 
     try {
-      console.log("🔍 Looking for Neovim socket connections...");
-      
-      // Find all available socket files
+      console.log("🚀 Starting Neovim connection process...");
+      console.log(`🎯 Target socket: ${preferredSockets[0]}`);
+      console.log(`⏱️  Timeout: ${timeout}ms, Retries: ${retryAttempts}`);
+
+      // Your existing socket discovery logic, but with enhanced logging
       const socketFiles = await this.findSocketFiles(preferredSockets);
-      
+
       if (socketFiles.length === 0) {
-        console.log("❌ No Neovim socket files found");
-        console.log("💡 Make sure Neovim is running with a socket server:");
-        console.log("   - Start with: nvim --listen /tmp/strudel-nvim-socket");
-        console.log("   - Or use vim.fn.serverstart() in your Neovim session");
+        console.log("❌ No valid socket files discovered");
+        await this.printConnectionDiagnostics();
         return false;
       }
 
-      console.log(`🔌 Found ${socketFiles.length} potential socket(s): ${socketFiles.join(', ')}`);
+      console.log(`✅ Found ${socketFiles.length} socket(s) to try: ${socketFiles.join(', ')}`);
 
-      // Try each socket file
       for (const socketPath of socketFiles) {
         console.log(`🔗 Attempting connection to: ${socketPath}`);
 
@@ -160,17 +221,17 @@ export class NeovimManager {
         for (let attempt = 1; attempt <= retryAttempts; attempt++) {
           try {
             console.log(`🔄 Connection attempt ${attempt}/${retryAttempts} to ${socketPath}`);
-            
+
             const socket = createConnection(socketPath);
             client = attach({ reader: socket, writer: socket });
-            
+
             // Test the RPC connection with a simple command
             await client.command('echo "Connected from external server!"');
-            
+
             connectionSuccess = true;
             console.log(`✅ RPC connection established to: ${socketPath}`);
             break;
-            
+
           } catch (error) {
             console.log(`❌ RPC attempt ${attempt} failed:`, error);
             if (client) {
@@ -181,7 +242,7 @@ export class NeovimManager {
               }
               client = null;
             }
-            
+
             if (attempt < retryAttempts) {
               await new Promise(resolve => setTimeout(resolve, 1000));
             }
@@ -196,7 +257,7 @@ export class NeovimManager {
           };
 
           console.log(`🎉 Successfully connected to Neovim via: ${socketPath}`);
-          
+
           // Scan buffers after successful connection
           await this.scanNeovimBuffers();
           return true;
@@ -211,7 +272,8 @@ export class NeovimManager {
       return false;
 
     } catch (error) {
-      console.error("❌ Error during Neovim connection:", error);
+      console.error("💥 Unexpected error during connection:", error);
+      await this.printConnectionDiagnostics();
       return false;
     }
   }
@@ -235,7 +297,7 @@ export class NeovimManager {
       for (const buffer of buffers) {
         try {
           const name = await buffer.name;
-          
+
           // Skip unnamed, terminal, or special buffers
           if (!name || name === '' || name.includes('[No Name]') || name.startsWith('term://')) {
             continue;
@@ -249,7 +311,7 @@ export class NeovimManager {
 
           const lines = await buffer.lines;
           const content = lines.join('\n');
-          
+
           const bufferData = {
             path: name,
             name: path.basename(name),
