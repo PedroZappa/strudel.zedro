@@ -11,6 +11,7 @@ body {
   height: 100vh;
   position: fixed;
   left: 0;
+  right: 1;
   top: 0;
   bottom: 0;
   overflow-y: auto;
@@ -195,3 +196,6 @@ iframe {
   animation: pulse 2s infinite;
 }
 
+.cm-editor{
+  background-color: white;
+}

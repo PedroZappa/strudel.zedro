@@ -60,21 +60,30 @@ export class PlaywrightManager {
     if (!this.page) throw new Error('Page not initialized');
 
     try {
-      console.log('⏳ Waiting for iframe to load...');
+      console.log('⏳ Waiting for Strudel REPL to be ready...');
 
-      await this.page.waitForSelector('iframe.repl', { timeout: 10000 });
-      console.log('✅ Iframe found');
+      // Wait for page load
+      await this.page.waitForLoadState('domcontentloaded');
 
-      // FIXED: Get the iframe using correct frameLocator
-      const strudelFrame = this.page.frameLocator('iframe.repl');
+      // KEY FIX: Wait for element to be attached (not visible)
+      await this.page.waitForSelector('strudel-editor', {
+        state: 'attached',  // Changed from default 'visible' 
+        timeout: 30000
+      });
+      console.log('✅ strudel-editor element found');
 
-      // Wait for Strudel to load inside the iframe
-      await strudelFrame.locator('.cm-editor').waitFor({ timeout: 30000 });
-      console.log('✅ CodeMirror found inside iframe');
+      // Wait for the web component's .editor property to initialize
+      await this.page.waitForFunction(() => {
+        const strudelEditor = document.querySelector('strudel-editor') as any;
+        return strudelEditor &&
+          strudelEditor.editor &&
+          typeof strudelEditor.editor.setCode === 'function';
+      }, { timeout: 30000 });
 
-      console.log('✅ Strudel iframe REPL is ready');
+      console.log('✅ Strudel editor API is ready');
+
     } catch (error) {
-      console.error('❌ Strudel iframe failed to load properly:', error);
+      console.error('❌ Strudel REPL failed to load:', error);
       throw error;
     }
   }
@@ -87,49 +96,42 @@ export class PlaywrightManager {
 
     try {
       console.log('📤 Sending code to Strudel REPL...');
-      console.log(`Code length: ${code.length} characters`);
+      console.log(`Code: ${code}`);
 
       const success = await this.page.evaluate((codeToSet) => {
         try {
-          // Method 1: Try CodeMirror 6 (newer Strudel versions)
-          const cmEditor = document.querySelector('.cm-editor');
-          if (cmEditor && cmEditor.cmView) {
-            const view = cmEditor.cmView.view;
-            view.dispatch({
-              changes: {
-                from: 0,
-                to: view.state.doc.length,
-                insert: codeToSet
-              }
-            });
-            return true;
+          // Get the strudel-editor web component
+          const strudelEditor = document.querySelector('strudel-editor') as any;
+
+          if (!strudelEditor) {
+            console.error('❌ strudel-editor element not found');
+            return false;
           }
 
-          // Method 2: Try CodeMirror 5 (older versions)
-          const cmLegacy = document.querySelector('.CodeMirror');
-          if (cmLegacy && cmLegacy.CodeMirror) {
-            cmLegacy.CodeMirror.setValue(codeToSet);
-            return true;
+          if (!strudelEditor.editor) {
+            console.error('❌ strudelEditor.editor property not available');
+            return false;
           }
 
-          // Method 3: Try accessing global Strudel REPL object
-          if (window.repl && window.repl.editor) {
-            window.repl.editor.setValue(codeToSet);
-            return true;
+          if (typeof strudelEditor.editor.setCode !== 'function') {
+            console.error('❌ setCode method not available');
+            return false;
           }
 
-          // Method 4: Try strudel-editor web component
-          const strudelEditor = document.querySelector('strudel-editor');
-          if (strudelEditor && strudelEditor.editor) {
-            strudelEditor.editor.setCode(codeToSet);
-            return true;
+          // Set the code using the official Strudel API
+          strudelEditor.editor.setCode(codeToSet);
+          console.log('✅ Code set successfully');
+
+          // Optionally evaluate the code immediately
+          if (typeof strudelEditor.editor.evaluate === 'function') {
+            strudelEditor.editor.evaluate();
+            console.log('✅ Code evaluated');
           }
 
-          console.error('No suitable CodeMirror instance found');
-          return false;
+          return true;
 
         } catch (err) {
-          console.error('Error setting code:', err);
+          console.error('❌ Error in evaluate:', err);
           return false;
         }
       }, code);
@@ -157,50 +159,62 @@ export class PlaywrightManager {
     try {
       console.log('⏹️ Stopping Strudel playback...');
 
-      // Use JavaScript evaluation to stop playback
       const success = await this.page.evaluate(() => {
         try {
-          // Try different methods to stop Strudel
-
-          // Method 1: Global hush function
-          if (window.hush && typeof window.hush === 'function') {
-            window.hush();
+          // Use strudel-editor web component API
+          const strudelEditor = document.querySelector('strudel-editor') as any;
+          if (strudelEditor && strudelEditor.editor && typeof strudelEditor.editor.stop === 'function') {
+            strudelEditor.editor.stop();
+            console.log('✅ Successfully stopped via strudel-editor API');
             return true;
           }
 
-          // Method 2: REPL stop method
-          if (window.repl && window.repl.stop) {
-            window.repl.stop();
+          // Fallback methods
+          if ((window as any).hush && typeof (window as any).hush === 'function') {
+            (window as any).hush();
+            console.log('✅ Successfully stopped via global hush');
             return true;
           }
 
-          // Method 3: Look for stop button and click it
-          const stopButton = document.querySelector('[data-cy="stop"], .stop-button, button[title*="stop"]');
-          if (stopButton) {
-            stopButton.click();
-            return true;
-          }
-
-          console.log('No stop method found, Strudel might not be playing');
-          return true; // Not necessarily an error
+          console.log('⚠️ No stop method found');
+          return true;
 
         } catch (err) {
-          console.error('Error stopping Strudel:', err);
+          console.error('❌ Error stopping Strudel:', err);
           return false;
         }
       });
 
-      if (success) {
-        console.log('✅ Strudel playback stopped');
-        return true;
-      } else {
-        console.error('❌ Failed to stop Strudel playback');
-        return false;
-      }
-
+      return success;
     } catch (error) {
       console.error('❌ Failed to stop Strudel:', error);
       return false;
+    }
+  }
+
+  async debugStrudel(): Promise<void> {
+    if (!this.page) return;
+
+    console.log('🔍 Strudel Diagnostics:');
+
+    const info = await this.page.evaluate(() => {
+      const editor = document.querySelector('strudel-editor') as any;
+      return {
+        hasElement: !!editor,
+        hasEditor: !!(editor && editor.editor),
+        hasSetCode: !!(editor && editor.editor && editor.editor.setCode),
+        setCodeType: editor && editor.editor ? typeof editor.editor.setCode : 'undefined',
+        availableMethods: editor && editor.editor ? Object.getOwnPropertyNames(editor.editor).filter(name => typeof editor.editor[name] === 'function') : []
+      };
+    });
+
+    console.log('📊 Debug Results:', JSON.stringify(info, null, 2));
+
+    if (!info.hasElement) {
+      console.log('⚠️ No strudel-editor element found - check HTML template');
+    }
+    if (!info.hasSetCode) {
+      console.log('⚠️ setCode method not available - web component may not be loaded');
     }
   }
 

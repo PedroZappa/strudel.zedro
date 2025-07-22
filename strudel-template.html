@@ -5,45 +5,43 @@
   <meta charset="UTF-8">
   <title>Neovim ↔ Strudel.cc Integration</title>
   <link rel="stylesheet" href="styles.css">
-  <script type="module" src="dist/client/client-app.js">
-
-  </script>
+  <script type="module" src="dist/client/client-app.js"></script>
+  <!-- Load Strudel REPL web component -->
+  <script src="https://unpkg.com/@strudel/repl@latest"></script>
 </head>
 
 <body>
-  <div id="sidebar">
-    <div id="header">
-      <h2>
-        <span id="status-indicator" class="status-indicator status-disconnected"></span>
-        Neovim Files
-      </h2>
-    </div>
+  <!-- <div id="sidebar"> -->
+  <!--   <div id="header"> -->
+  <!--     <h2> -->
+  <!--       <span id="status-indicator" class="status-indicator status-disconnected"></span> -->
+  <!--       Neovim Files -->
+  <!--     </h2> -->
+  <!--   </div> -->
+  <!--   <div id="controls"> -->
+  <!--     <button onclick="refreshFiles()" id="refresh-btn">🔄 Refresh</button> -->
+  <!--   </div> -->
+  <!--   <div id="files"></div> -->
+  <!--   <div id="file-preview" style="display: none;"> -->
+  <!--     <!-- File content preview --> -->
+  <!--   </div> -->
+  <!--   <!-- <button id="copy-btn" onclick="copyFileText()" style="display: none;"> --> -->
+  <!--   <!--   📋 Copy to Clipboard --> -->
+  <!--   <!-- </button> --> -->
+  <!--   <div id="instructions"> -->
+  <!--     <strong>📚 Instructions:</strong><br> -->
+  <!--     1. Connect to a running Neovim instance<br> -->
+  <!--     2. Select a file to preview<br> -->
+  <!--     3. Copy code and paste into Strudel REPL →<br> -->
+  <!--     4. Use <strong>Share</strong> to generate URLs -->
+  <!--   </div> -->
+  <!-- </div> -->
 
-    <div id="controls">
-      <button onclick="refreshFiles()" id="refresh-btn">🔄 Refresh</button>
-    </div>
-
-    <div id="files"></div>
-
-    <div id="file-preview" style="display: none;">
-      <!-- File content preview -->
-    </div>
-
-    <!-- <button id="copy-btn" onclick="copyFileText()" style="display: none;"> -->
-    <!--   📋 Copy to Clipboard -->
-    <!-- </button> -->
-
-    <div id="instructions">
-      <strong>📚 Instructions:</strong><br>
-      1. Connect to a running Neovim instance<br>
-      2. Select a file to preview<br>
-      3. Copy code and paste into Strudel REPL →<br>
-      4. Use <strong>Share</strong> to generate URLs
-    </div>
+  <!-- Use strudel-editor web component -->
+  <div class="main-repl">
+    <strudel-editor id="main-repl">
+    </strudel-editor>
   </div>
-
-  <iframe class="repl" src="https://strudel.cc/#setcps(120/4)"></iframe>
-
 
 
 </body>
