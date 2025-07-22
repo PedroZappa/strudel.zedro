@@ -4,46 +4,103 @@ This repository contains the source code for **strudel.zedro**, an integration t
 
 It allows a user to write code in a local Neovim instance and send it directly to the Strudel REPL running in a browser, enabling a seamless live-coding workflow without leaving the editor.
 
-### Core Components
+## Core Architecture
 
-1.  **Node.js Server (`server.ts`)**:
-    *   Built with **Bun** and written in **TypeScript**.
-    *   Acts as the central bridge between Neovim and the browser.
-    *   Serves a web-based UI (`strudel-template.html`).
-    *   Provides a REST API to:
-        *   List and serve files (`.strdl`, etc.).
-        *   Connect to a running Neovim instance to get buffer contents.
-        *   Receive code from Neovim and forward it to the browser.
-    *   Uses **Playwright** to control the browser instance where Strudel.cc is running, injecting code into its REPL.
+The project is built with a modular, TypeScript-based architecture, consisting of a central server, a web-based UI, and a Neovim plugin.
 
-2.  **Web UI (`client-app.ts`, `strudel-template.html`)**:
-    *   A simple frontend application that displays a list of files available from the connected Neovim instance.
-    *   It embeds the official `strudel.cc` REPL in an `<iframe>`.
-    *   Allows users to select files, view their content, and manually copy-paste code.
+### 1. Node.js Server (`server.ts`)
 
-3.  **Neovim Plugin (`strudel-integration.lua`)**:
-    *   A Lua plugin for Neovim that provides user commands and keymaps.
-    *   Allows sending the content of the current buffer or a visual selection to the server via `curl` commands.
-    *   Includes commands like `:StrudelSendBuffer`, `:StrudelSendSelection`, and `:StrudelStop` (hush).
+Built with **Bun**, the server acts as the bridge between Neovim and the browser. It is composed of three main managers:
 
-### Workflow
+*   **`FileManager` (`server-file-manager.ts`)**:
+    *   Scans the local project for `.strdl` files.
+    *   Manages file information, including virtual buffers from Neovim.
+    *   Watches for file changes and updates accordingly.
 
-1.  The user starts the server using `bun run dev`.
-2.  The server starts and can optionally launch a browser window with the Strudel UI.
-3.  The user configures their Neovim with the `strudel-integration.lua` plugin.
+*   **`NeovimManager` (`server-neovim-manager.ts`)**:
+    *   Connects to a running Neovim instance via a socket (`/tmp/strudel-nvim-socket`).
+    *   Scans Neovim for open buffers and syncs their content with the `FileManager`.
+    *   Provides the core link to read code directly from the editor.
+
+*   **`PlaywrightManager` (`server-playwright-manager.ts`)**:
+    *   Launches and controls a browser instance using Playwright.
+    *   Navigates to a local page that embeds the Strudel.cc REPL.
+    *   Injects code received from Neovim into the Strudel REPL for execution.
+
+The server exposes a REST API for communication with the client UI and `curl` commands from the Neovim plugin.
+
+### 2. Web UI (Client)
+
+A simple but effective frontend application built with TypeScript that runs in the browser.
+
+*   **`client-app.ts`**: The main application logic that initializes the UI and coordinates communication with the server.
+*   **`client-ui.ts`**: Manages all DOM manipulation, renders the file list, and displays status notifications.
+*   **`client-api.ts`**: A dedicated class for making requests to the server's REST API.
+*   **`strudel-template.html`**: The HTML structure for the web UI, which includes the embedded Strudel REPL in an `<iframe>`.
+
+### 3. Neovim Plugin (`strudel-integration.lua`)
+
+A Lua plugin for Neovim that provides the in-editor user interface.
+
+*   Provides commands (`:StrudelSendBuffer`, `:StrudelSendSelection`, `:StrudelStop`) and keymaps (`ss`, `sh`).
+*   Sends code from the current buffer or visual selection to the server using asynchronous `curl` commands.
+*   Includes logic to automatically start and manage the Neovim socket server (`vim.fn.serverstart`).
+
+## Workflow
+
+1.  The user starts the server with `bun run dev`.
+2.  The server launches, starts a Playwright-controlled browser, and attempts to connect to a Neovim socket.
+3.  The user configures their Neovim with the `strudel-integration.lua` plugin, which ensures a socket is available.
 4.  Inside Neovim, the user writes Strudel code in a buffer.
 5.  Using a keymap (e.g., `ss`), the user sends the code to the server.
 6.  The server receives the code and uses Playwright to execute it within the Strudel.cc iframe.
 7.  The music/pattern updates in real-time.
 
-### Key Technologies
+## Key Technologies
 
 *   **Runtime**: [Bun](https://bun.sh/)
 *   **Language**: TypeScript
 *   **Server**: Bun's native HTTP server
 *   **Browser Automation**: Playwright
 *   **Editor Integration**: Neovim (Lua)
-*   **Frontend**: HTML, CSS, TypeScript
+*   **Frontend**: TypeScript, HTML, CSS
 
-This setup provides a powerful and flexible environment for live-coding music with Strudel, leveraging the advanced editing capabilities of Neovim.
+## Setup and Usage
 
+### Prerequisites
+
+*   [Bun](https://bun.sh/) installed.
+*   [Neovim](https://neovim.io/) (v0.10+ for best results).
+
+### Installation
+
+1.  Clone the repository:
+    ```sh
+    git clone https://github.com/PedroZappa/strudel.zedro.git
+    cd strudel.zedro
+    ```
+
+2.  Install dependencies:
+    ```sh
+    bun install
+    ```
+
+### Running the Server
+
+1.  Start the development server:
+    ```sh
+    bun run dev
+    ```
+2.  This will start the server, launch a browser window with the UI, and begin listening for a Neovim connection.
+
+### Neovim Configuration
+
+1.  Place the `strudel-integration.lua` file in your Neovim configuration directory (e.g., `~/.config/nvim/lua/strudel.lua`).
+2.  Load it in your `init.lua` or via a plugin manager:
+    ```lua
+    require('strudel').setup({
+      -- Optional configuration
+      show_notifications = true,
+    })
+    ```
+3.  The plugin will automatically start the required Neovim socket server. You can now use the keymaps (`ss` to send, `sh` to hush) to control Strudel from Neovim.
