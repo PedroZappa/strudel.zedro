@@ -29,12 +29,11 @@ bassline: note("f1*4 g1*4 bb1*4 db1*4")
   .room(0.4)
   .postgain(pick(gainnn, gooo))
 
-// Arpeggiator
 const arp = [
   "{c4 ab3 db3 c3 ab2 db2}%16",
 ]
 
-main_arp: note(pick(arp, "<0 1 2 3>".slow(20)))//.rev()
+arp: note(pick(arp, "<0 1 2 3>".slow(20)))//.rev()
   .s("supersaw")
   .lpf(300)
   .sustain(0.5).release(0.05).attack(0)
@@ -43,9 +42,6 @@ main_arp: note(pick(arp, "<0 1 2 3>".slow(20)))//.rev()
   .postgain(gainnn, gooo)
   ._punchcard({height:100, width:1670})
 
-
-// Drums
-// $: s("bd sd bd rim")
 
 drums: stack(
   s("rolandtr808_bd:25").postgain(6),
