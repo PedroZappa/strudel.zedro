@@ -1,3 +1,7 @@
-setcps(120/4)
+setcpm(100)
 
-$: s("hh hh hh")
+// Drums
+$: s("bd sd bd rim, hh*8")
+
+// Synths
+
