@@ -1,2 +1,66 @@
+// @ Learning Strudel.cc @by Zedro
+setGainCurve(x => Math.pow(x, 2))
+samples('github:switchangel/breaks')
+samples('github:switchangel/pad')
+samples('github:tidalcycles/uzu-drumkit')
+
+setCps(170/60/4)
+
+// Mixer
+const energy = slider(5,12)
+const b34t = 0
+
+DRUMS: stack(
+  s("breaks/2").fit().gain(.8)
+    .scrub(
+      irand(16).div(16).seg(8)
+      //.ribbon(11,1)
+      .ribbon("<4 20>",4)
+    )
+    .n(irand(5).ribbon("<4 2>",1))
+    .almostNever(ply("2 | 4"))
+    .orbit(2)
+    .distort("2:.5")
+    .color("yellow")._scope(),
+  s("white!8").decay(.08).gain(.8)
+    .almostNever(ply("2"))
+    .color("white")._scope()
+)
+
+const briffs = [
+  "c2!4 f2 g#2",
+  "g#1!4 f2 g#2",
+  "f1!4 f2 g#2",
+  "e1!4 f2 g#2",
+]
+
+BASS: s("supersaw").gain(1.8)
+  .note(pick(briffs, "<0 0 0 0 1 1 2 3>"))
+  .seg(8)
+//  .struct("1@5 1@3")
+  .lpf(500).lpenv(4).lpa(1)
+  .distort("4:.5")
+  .color("red")._scope()
+
+const chops = [
+  "0@5 0@3".color("teal"),
+  ".16!3 .2@5".color("magenta"),
+  rand.seg(8).rib(66, 3)
+]
+
+PADS: stack(
+  s("swpad")
+  .scrub(pick(chops, "<0 1 0 2>")).att(.1)
+  .n(2).gain(1.5).note("c2@2 g2 d3")
+  .phaser(.5)
+  .room(1).roomsize(5)
+  .color("green")._punchcard()
+)
+
+// Pass all tracks through LPF
+all(x => x.lpf(slider(100,10,100).pow(2)).lpenv(3))
+// all(x => x.lpf(slider(100,10,100).pow(2)).lpenv(3).rib(6, 1/2))
+// all(x => x.lpf(slider(100,10,100).pow(2)).lpenv(3).rib(6, 1/4))
+// all(x => x.lpf(slider(100,10,100).pow(2)).lpenv(3).rib(6, 1/8))
 
 
