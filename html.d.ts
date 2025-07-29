@@ -1,4 +1,6 @@
 // html.d.ts - Type declarations for HTML template imports
+declare module '@strudel/web';
+
 declare module "*.html" {
   const content: string;
   export default content;

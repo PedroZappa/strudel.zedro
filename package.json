@@ -14,6 +14,7 @@
     "build:analyze": "bun build --target=browser --outdir=dist/client --minify --analyze client-app.ts"
   },
   "dependencies": {
+    "@strudel/web": "^1.2.3",
     "chromium-bidi": "^7.2.0",
     "electron": "^37.2.3",
     "find-process": "^1.4.7",

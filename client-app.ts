@@ -2,6 +2,7 @@
 import { StrudelAPI } from './client-api';
 import { UIManager } from './client-ui';
 import type { FileInfo } from './client-types';
+import { initStrudel } from '@strudel/web';
 
 export class StrudelApp {
   private api: StrudelAPI;
@@ -47,17 +48,23 @@ export class StrudelApp {
     console.log('🚀 Initializing Strudel App...');
 
     try {
+      // Create custom canvas
+      this.createCustomCanvas();
+
       // Check server health
       await this.checkServerHealth();
-      
+
       // Check initial Neovim connection
       await this.checkNeovimConnection();
-      
+
       // Load initial files
       await this.loadFiles();
-      
+
       // Start auto-refresh
       this.startAutoRefresh();
+
+      // Initialize Strudel
+      await initStrudel();
 
       console.log('✅ Strudel App initialized successfully');
     } catch (error) {
@@ -66,10 +73,42 @@ export class StrudelApp {
     }
   }
 
+  createCustomCanvas() {
+    // Remove any existing canvas
+    const existingCanvas = document.getElementById('test-canvas');
+    if (existingCanvas) {
+      existingCanvas.remove();
+    }
+
+    // Create new canvas with your dimensions
+    const canvas = document.createElement('canvas');
+    canvas.id = 'test-canvas';
+    canvas.width = 1920;
+    canvas.height = 1080;
+    canvas.style.cssText = 'pointer-events:none;width:100%;height:100%;position:fixed;top:0;left:0;';
+
+    document.body.prepend(canvas);
+    return canvas;
+  }
+
+  // In your client-app.ts, add this after initStrudel()
+  configureStrudelCanvas() {
+    const canvas = document.getElementById('test-canvas') as HTMLCanvasElement;
+    if (canvas) {
+      // Override the canvas bitmap dimensions
+      canvas.width = 1920;  // Your desired width
+      canvas.height = 1080; // Your desired height
+
+      // Optionally adjust CSS size if needed
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+    }
+  }
+
   // Server health check
   private async checkServerHealth(): Promise<void> {
     const response = await this.api.getServerStatus();
-    
+
     if (!response.success || !response.data) {
       throw new Error('Server health check failed');
     }
@@ -80,7 +119,7 @@ export class StrudelApp {
   // Check Neovim connection status
   private async checkNeovimConnection(): Promise<void> {
     const response = await this.api.getNeovimStatus();
-    
+
     if (response.success && response.data) {
       const connected = response.data.connected;
       this.ui.updateConnectionStatus(
@@ -103,7 +142,7 @@ export class StrudelApp {
       // Refresh files after successful connection
       await this.loadFiles();
     } else {
-      this.ui.updateConnectionStatus('disconnected', 
+      this.ui.updateConnectionStatus('disconnected',
         response.data?.message || response.error || 'Failed to connect to Neovim'
       );
     }
@@ -132,7 +171,7 @@ export class StrudelApp {
     try {
       // Trigger server-side file refresh
       const refreshResponse = await this.api.refreshFiles();
-      
+
       if (refreshResponse.success) {
         // Reload files
         await this.loadFiles();
@@ -151,7 +190,7 @@ export class StrudelApp {
 
     // Find file in current list
     let file = this.files.find(f => f.path === filePath);
-    
+
     if (!file) {
       console.error('File not found in current list');
       return;
@@ -160,7 +199,7 @@ export class StrudelApp {
     // If file doesn't have content, fetch it
     if (!file.content) {
       const response = await this.api.getFileContent(filePath);
-      
+
       if (response.success && response.data) {
         file = response.data;
         // Update file in list
@@ -208,14 +247,14 @@ export class StrudelApp {
   // Send code to Strudel
   async sendToStrudel(code?: string): Promise<void> {
     const codeToSend = code || this.ui.selectedFileContent;
-    
+
     if (!codeToSend) {
       this.ui.showNotification('No code to send', 'error');
       return;
     }
 
     const response = await this.api.sendCodeToStrudel(codeToSend);
-    
+
     if (response.success && response.data?.success) {
       this.ui.showNotification('Code sent to Strudel successfully!', 'success');
     } else {
@@ -257,11 +296,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (connectBtn) {
     connectBtn.addEventListener('click', () => app.ui.onConnectClick?.());
   }
-  
+
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => app.ui.onRefreshClick?.());
   }
-  
+
   if (copyBtn) {
     copyBtn.addEventListener('click', () => app.ui.onCopyClick?.());
   }
