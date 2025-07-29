@@ -2,11 +2,9 @@
 
 This repository contains the source code for **strudel.zedro**, an integration that connects the **Neovim** code editor with the **Strudel.cc** web-based live-coding music environment.
 
-It allows a user to write code in a local Neovim instance and send it directly to the Strudel REPL running in a browser, enabling a seamless live-coding workflow without leaving the editor.
+It allows a user to write code in a local Neovim instance and send the contents of its buffer directly to the Strudel REPL running in a browser, enabling a seamless live-coding workflow without leaving the terminal.
 
 ## Core Architecture
-
-The project is built with a modular, TypeScript-based architecture, consisting of a central server, a web-based UI, and a Neovim plugin.
 
 ### 1. Node.js Server (`server.ts`)
 
@@ -33,16 +31,14 @@ The server exposes a REST API for communication with the client UI and `curl` co
 
 A simple but effective frontend application built with TypeScript that runs in the browser.
 
-*   **`client-app.ts`**: The main application logic that initializes the UI and coordinates communication with the server.
-*   **`client-ui.ts`**: Manages all DOM manipulation, renders the file list, and displays status notifications.
-*   **`client-api.ts`**: A dedicated class for making requests to the server's REST API.
-*   **`strudel-template.html`**: The HTML structure for the web UI, which includes the embedded Strudel REPL in an `<iframe>`.
+*   Provides a user-friendly interface for sending code to the Strudel REPL in a browser.
+*   Uses HTML, CSS, and JavaScript to render the Strudel REPL.
 
 ### 3. Neovim Plugin (`strudel-integration.lua`)
 
 A Lua plugin for Neovim that provides the in-editor user interface.
 
-*   Provides commands (`:StrudelSendBuffer`, `:StrudelSendSelection`, `:StrudelStop`) and keymaps (`ss`, `sh`).
+*   Provides commands (`:Strudel sendbuf`, `:Strudel browser`, `:Strudel stop`) and keymaps (`ss`, `si`, `sh`).
 *   Sends code from the current buffer or visual selection to the server using asynchronous `curl` commands.
 *   Includes logic to automatically start and manage the Neovim socket server (`vim.fn.serverstart`).
 
@@ -52,9 +48,9 @@ A Lua plugin for Neovim that provides the in-editor user interface.
 2.  The server launches, starts a Playwright-controlled browser, and attempts to connect to a Neovim socket.
 3.  The user configures their Neovim with the `strudel-integration.lua` plugin, which ensures a socket is available.
 4.  Inside Neovim, the user writes Strudel code in a buffer.
-5.  Using a keymap (e.g., `ss`), the user sends the code to the server.
+5.  Using a keymap (e.g., `<leader>ss`), the user sends the code to the server.
 6.  The server receives the code and uses Playwright to execute it within the Strudel.cc iframe.
-7.  The music/pattern updates in real-time.
+7.  Change the code, hit send again (`<leader>ss`), and the REPL is updated with the contents of the Neovim buffer.
 
 ## Key Technologies
 
@@ -63,7 +59,7 @@ A Lua plugin for Neovim that provides the in-editor user interface.
 *   **Server**: Bun's native HTTP server
 *   **Browser Automation**: Playwright
 *   **Editor Integration**: Neovim (Lua)
-*   **Frontend**: TypeScript, HTML, CSS
+*   **Frontend**: HTML, CSS
 
 ## Setup and Usage
 
@@ -95,10 +91,10 @@ A Lua plugin for Neovim that provides the in-editor user interface.
 
 ### Neovim Configuration
 
-1.  Place the `strudel-integration.lua` file in your Neovim configuration directory (e.g., `~/.config/nvim/lua/strudel.lua`).
+1.  Place the `strudel-integration.lua` file in your Neovim configuration directory (e.g., `~/.config/nvim/lua/strudel-integration.lua`).
 2.  Load it in your `init.lua` or via a plugin manager:
     ```lua
-    require('strudel').setup({
+    require('strudel-integration').setup({
       -- Optional configuration
       show_notifications = true,
     })
