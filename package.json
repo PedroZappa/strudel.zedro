@@ -14,6 +14,7 @@
     "build:analyze": "bun build --target=browser --outdir=dist/client --minify --analyze client-app.ts"
   },
   "dependencies": {
+    "@strudel/repl": "^1.2.3",
     "@strudel/web": "^1.2.3",
     "chromium-bidi": "^7.2.0",
     "electron": "^37.2.3",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@playwright/test": "^1.54.1",
     "@types/node": "^20.0.0",
+    "@types/web": "^0.0.256",
     "bun-types": "latest",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0"

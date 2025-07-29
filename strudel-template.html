@@ -12,11 +12,17 @@
 </head>
 
 <body>
-  <!-- Use strudel-editor web component -->
+
+  <div id="strudel"></div>
+  <!-- <script type="module" src="./dist/client/client-app.js"></script> -->
+
   <script>
-    initStrudel();
+    const repl = document.createElement('strudel-editor');
+    repl.setAttribute('code', `...`);
+    document.getElementById('strudel').append(repl);
+    console.log(repl.editor);
   </script>
-  <strudel-editor></strudel-editor>
+
 </body>
 
 </html>
