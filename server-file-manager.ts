@@ -1,8 +1,7 @@
 /**
-* @fileoverview
-*
+* @fileoverview File manager for Strudel Files
+* @author Zedro
 * @module
-* File manager for Neovim buffers.
 *
 * @requires fs
 * @requires path
@@ -37,7 +36,7 @@ export interface FileWatchOptions {
 }
 
 /**
-* File manager for Neovim buffers.
+* @class File manager for Strudel Files
 */
 export class FileManager {
   private files: Map<string, FileInfo> = new Map();
@@ -46,6 +45,7 @@ export class FileManager {
 
   /**
   * Create a new file manager instance.
+  * @constructor
   *
   * @param {string} workingDir - The working directory for the file manager.
   */

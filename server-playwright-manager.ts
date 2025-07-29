@@ -1,8 +1,18 @@
-// playwright-manager.ts
+/**
+ * @fileoverview Playwright manager for Strudel.
+ * @author Zedro
+ * @module
+ *
+ * @requires playwright
+ */
 
 import type { Browser, Page, BrowserContext } from 'playwright';
 import { chromium } from 'playwright';
 
+/**
+* @class Playwright Manager
+* @description Manages Playwright browser and page for Strudel repl.
+*/
 export class PlaywrightManager {
   private browser?: Browser;
   private context?: BrowserContext;
@@ -10,10 +20,22 @@ export class PlaywrightManager {
   private strudelUrl: string;
   private isInitialized = false;
 
+  /**
+  * Constructs a new PlaywrightManager instance.
+  * @constructor
+  *
+  * @param {string} strudelUrl - The URL containing the Strudel REPL.
+  */
   constructor(strudelUrl: string) {
     this.strudelUrl = strudelUrl;
   }
 
+  /**
+  * Initializes the Playwright browser and navigates to the Strudel REPL.
+  * @async
+  *
+  * @returns {Promise<boolean>} True if initialization is successful, false otherwise.
+  */
   async initialize(): Promise<boolean> {
     try {
       console.log('🚀 Initializing Playwright browser…');
@@ -21,9 +43,11 @@ export class PlaywrightManager {
         headless: false,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
-      this.context = await this.browser.newContext({ viewport: { width: 1280, height: 720 } });
+      this.context = await this.browser.newContext({
+        viewport: { width: 1280, height: 720 }
+      });
       this.page = await this.context.newPage();
-      this.page.setDefaultTimeout(60_000);
+      this.page.setDefaultTimeout(30_000);
 
       console.log(`📱 Navigating to ${this.strudelUrl}/strudel`);
       await this.navigateWithRetry();                // ← robust navigation
@@ -56,6 +80,13 @@ export class PlaywrightManager {
     }
   }
 
+  /**
+  * Waits for the Strudel REPL to be ready.
+  * @private
+  * @async
+  *
+  * @returns {Promise<void>} Resolves when the Strudel REPL is ready.
+  */
   private async waitForStrudelReady(): Promise<void> {
     if (!this.page) throw new Error('Page not initialized');
 
@@ -65,9 +96,9 @@ export class PlaywrightManager {
       // Wait for page load
       await this.page.waitForLoadState('domcontentloaded');
 
-      // KEY FIX: Wait for element to be attached (not visible)
+      // Wait for element to be attached (not visible)
       await this.page.waitForSelector('strudel-editor', {
-        state: 'attached',  // Changed from default 'visible' 
+        state: 'attached',
         timeout: 30000
       });
       console.log('✅ strudel-editor element found');
@@ -88,6 +119,13 @@ export class PlaywrightManager {
     }
   }
 
+  /**
+  * Sends code to the Strudel REPL.
+  * @async
+  *
+  * @param {string} code - The code to send to the Strudel REPL.
+  * @returns {Promise<boolean>} True if the code is successfully sent, false otherwise.
+  */
   async sendCodeToStrudel(code: string): Promise<boolean> {
     if (!this.isInitialized || !this.page) {
       console.error('❌ Playwright not initialized');
@@ -150,6 +188,12 @@ export class PlaywrightManager {
     }
   }
 
+  /**
+  * Stops the Strudel REPL.
+  * @async
+  *
+  * @returns {Promise<boolean>} True if the Strudel REPL is successfully stopped, false otherwise.
+  */
   async stopStrudel(): Promise<boolean> {
     if (!this.isInitialized || !this.page) {
       console.error('❌ Playwright not initialized');

@@ -21,6 +21,7 @@
     "playwright": "^1.40.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.1",
     "@types/node": "^20.0.0",
     "bun-types": "latest",
     "prettier": "^3.0.0",

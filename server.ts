@@ -429,6 +429,7 @@ export class StrudelServer {
       // Now start Playwright after server is confirmed ready
       console.log("🎹 Starting Playwright...");
       await this.playwrightManager.initialize();
+      // await this.playwrightManager.debugStrudel();
 
     } catch (error) {
       console.error("❌ Failed to start server:", error);
