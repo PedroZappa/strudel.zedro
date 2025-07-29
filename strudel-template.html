@@ -6,35 +6,17 @@
   <title>Neovim ↔ Strudel.cc Integration</title>
   <!-- Load styles -->
   <link rel="stylesheet" href="styles.css">
-  <!-- <script type="module" src="dist/client/client-app.js"></script> -->
   <!-- Load Strudel REPL web components -->
   <script src="https://unpkg.com/@strudel/repl@latest"></script>
   <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
 </head>
 
 <body>
-  <button id="play">play</button>
-  <button id="stop">stop</button>
+  <!-- Use strudel-editor web component -->
   <script>
     initStrudel();
-    const tweak = () => {
-      const c = document.getElementById('test-canvas');
-      if (c) {
-        c.style.border = '3px solid magenta';
-        c.style.width = '100%';
-        c.style.height = '100%';
-      }
-    };
-    window.addEventListener('load', tweak);
-    document.getElementById('play').addEventListener('click', () => note('<c a f e>(3,8)').play());
-    document.getElementById('stop').addEventListener('click', () => hush());
   </script>
-
-
-  <!-- Use strudel-editor web component -->
   <strudel-editor></strudel-editor>
-
-
 </body>
 
 </html>
