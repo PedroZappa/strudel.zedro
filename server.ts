@@ -410,7 +410,7 @@ export class StrudelServer {
         fetch: (req) => this.fetch(req),
       });
 
-      console.log(`🎵 Strudel Server running!`);
+      console.log(`🎵 Strudel Server initializing...!`);
 
       // Wait for server to be ready before starting Playwright
       await this.waitForServerReady();

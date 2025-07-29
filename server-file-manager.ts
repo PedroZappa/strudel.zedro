@@ -1,5 +1,13 @@
+/**
+* @fileoverview
+*
+* @module
+* File manager for Neovim buffers.
+*
+* @requires fs
+* @requires path
+*/
 
-// server/file-manager.ts - Fixed version with virtual buffer handling
 import { watch } from "fs";
 import path from "path";
 
@@ -12,22 +20,46 @@ export interface FileInfo {
   isVirtual?: boolean; // NEW: Track virtual buffers
 }
 
+export interface FileStats {
+  totalFiles: number;
+  realFiles: number;
+  virtualFiles: number;
+  totalSize: number;
+  averageSize: number;
+  extensions: Record<string, number>;
+  lastUpdate: Date | null;
+}
+
 export interface FileWatchOptions {
   patterns?: string[];
   excludeDirs?: string[];
   workingDir?: string;
 }
 
+/**
+* File manager for Neovim buffers.
+*/
 export class FileManager {
   private files: Map<string, FileInfo> = new Map();
   private watchers: Map<string, any> = new Map();
   private workingDir: string;
 
+  /**
+  * Create a new file manager instance.
+  *
+  * @param {string} workingDir - The working directory for the file manager.
+  */
   constructor(workingDir: string = process.cwd()) {
     this.workingDir = workingDir;
   }
 
-  // Enhanced buffer path validation
+  /**
+  * Check if a buffer path is a virtual buffer.
+  * @private
+  *
+  * @param {string} bufferPath - The path to the buffer.
+  * @returns {boolean} - True if the buffer is a virtual buffer, false otherwise.
+  */
   private isVirtualPath(bufferPath: string): boolean {
     // Check for common virtual buffer patterns
     const virtualPatterns = [
@@ -50,7 +82,14 @@ export class FileManager {
     return virtualPatterns.some(pattern => pattern.test(bufferPath));
   }
 
-  // Safe file existence check
+  /** 
+  * Check if a file exists and is accessible.
+  * @private
+  * @async
+  *
+  * @param {string} filePath - The path to the file.
+  * @returns {Promise<boolean>} - True if the file exists and is accessible, false otherwise.
+  */
   private async fileExistsAndAccessible(filePath: string): Promise<boolean> {
     try {
       const file = Bun.file(filePath);
@@ -65,7 +104,14 @@ export class FileManager {
     }
   }
 
-  // FIXED: Enhanced watchFile with proper validation
+  /**
+  * Watch a file for changes.
+  * @private
+  * @async
+  *
+  * @param {string} fullPath - The full path to the file.
+  * @param {string} relativePath - The relative path to the file.
+  */
   private async watchFile(fullPath: string, relativePath: string): Promise<void> {
     // Skip if we're already watching this file
     if (this.watchers.has(relativePath)) {
@@ -79,6 +125,7 @@ export class FileManager {
         return;
       }
 
+      // Watch the file for changes
       const watcher = watch(fullPath, { persistent: false }, async (eventType) => {
         if (eventType === 'change') {
           console.log(`📝 File changed: ${relativePath}`);
@@ -86,6 +133,7 @@ export class FileManager {
         }
       });
 
+      // Handle errors
       watcher.on('error', (error) => {
         console.error(`❌ File watcher error for ${relativePath}:`, error);
         // Remove failed watcher from map
@@ -100,7 +148,14 @@ export class FileManager {
     }
   }
 
-  // FIXED: Enhanced addBufferFile with virtual buffer handling
+  // Enhanced addBufferFile with virtual buffer handling
+  /**
+  * Add a buffer file to the file manager.
+  * @public
+  * 
+  * @param {object} bufferData - The data of the buffer to add.
+  * @returns {void}
+  */
   addBufferFile(bufferData: {
     path: string;
     name: string;
@@ -112,7 +167,7 @@ export class FileManager {
 
     // For virtual buffers, use the buffer name as the key
     // For real files, use relative path
-    const fileKey = isVirtual 
+    const fileKey = isVirtual
       ? `virtual:${bufferData.name}:${bufferData.bufnr}`
       : path.relative(this.workingDir, bufferPath);
 
@@ -140,6 +195,13 @@ export class FileManager {
   }
 
   // Enhanced buffer filtering for scanNeovimBuffers
+  /**
+  * Check if a buffer should be processed.
+  * @public
+  *
+  * @param {string} bufferName - The name of the buffer.
+  * @returns {boolean} - True if the buffer should be processed, false otherwise.
+  */
   shouldProcessBuffer(bufferName: string): boolean {
     if (!bufferName || bufferName === '') return false;
 
@@ -167,7 +229,14 @@ export class FileManager {
     });
   }
 
-  // Rest of the methods remain the same but updated to handle virtual buffers
+  /**
+  * Scan local files for valid Strudel files.
+  * @public
+  * @async
+  *
+  * @param {FileWatchOptions} options - Options for file scanning.
+  * @returns {void}
+  */
   async scanLocalFiles(options: FileWatchOptions = {}): Promise<void> {
     const {
       patterns = ["**/*.strudel", "**/*.strdl"],
@@ -198,6 +267,15 @@ export class FileManager {
     console.log(`📁 Scanned ${totalFiles} local files`);
   }
 
+  /**
+  * Add a file to the file manager.
+  * @public
+  * @async
+  *
+  * @param {string} fullPath - The full path to the file.
+  * @param {string} relativePath - The relative path to the file.
+  * @returns {void}
+  */
   async addFile(fullPath: string, relativePath: string): Promise<void> {
     try {
       const fileContent = await Bun.file(fullPath).text();
@@ -220,6 +298,15 @@ export class FileManager {
     }
   }
 
+  /**
+  * Update the content of a file.
+  * @public
+  * @async
+  *
+  * @param {string} filePath - The path of the file to update.
+  * @param {string} content - The new content of the file.
+  * @returns {boolean} - True if the update was successful, false otherwise.
+  */
   async updateFileContent(filePath: string, content: string): Promise<boolean> {
     const file = this.files.get(filePath);
     if (!file) {
@@ -253,12 +340,24 @@ export class FileManager {
     }
   }
 
-  // Enhanced getters that handle virtual buffers
+  /**
+  * Get all files in the file manager.
+  * @public
+  *
+  * @returns {FileInfo[]} - An array of file text objects.
+  */
   getFiles(): FileInfo[] {
     return Array.from(this.files.values());
   }
 
-  getFilesList(): Array<{path: string, name: string, lastModified: string, isVirtual?: boolean}> {
+  /**
+  * Get a list of files in the file manager.
+  * @public
+  *
+  * @returns {Array<{ path: string, name: string, lastModified: string, isVirtual?: boolean }>} 
+  * - An array of file objects.
+  */
+  getFilesList(): Array<{ path: string, name: string, lastModified: string, isVirtual?: boolean }> {
     return this.getFiles().map(file => ({
       path: file.path,
       name: file.name,
@@ -267,19 +366,40 @@ export class FileManager {
     }));
   }
 
+  /**
+  * Get a file by its path.
+  * @public
+  *
+  * @param {string} filePath - The path of the file to retrieve.
+  * @returns {FileInfo | null} - The file object if found, null otherwise.
+  */
   getFile(filePath: string): FileInfo | null {
     return this.files.get(filePath) || null;
   }
 
+  /**
+  * Get the number of files in the file manager.
+  * @public
+  *
+  * @returns {number} - The number of files in the file manager.
+  */
   getFileCount(): number {
     return this.files.size;
   }
 
+  /**
+  * Clear the file manager.
+  * @public
+  */
   clear(): void {
     this.files.clear();
     console.log("🗑️ Cleared all files");
   }
 
+  /**
+  * Clean up the file manager.
+  * @public
+  */
   cleanup(): void {
     console.log("🧹 Cleaning up file watchers...");
 
@@ -295,7 +415,13 @@ export class FileManager {
     console.log("✅ File manager cleanup completed");
   }
 
-  getStats() {
+  /**
+  * Get statistics about the file manager.
+  * @public
+  *
+  * @returns {FileStats} - An object containing file statistics.
+  */
+  getStats(): FileStats {
     const files = this.getFiles();
     const realFiles = files.filter(f => !f.isVirtual);
     const virtualFiles = files.filter(f => f.isVirtual);
@@ -314,8 +440,8 @@ export class FileManager {
       totalSize,
       averageSize: files.length > 0 ? Math.round(totalSize / files.length) : 0,
       extensions: Object.fromEntries(extensions),
-      lastUpdate: files.length > 0 ? 
-        new Date(Math.max(...files.map(f => f.lastModified.getTime()))) : 
+      lastUpdate: files.length > 0 ?
+        new Date(Math.max(...files.map(f => f.lastModified.getTime()))) :
         null
     };
   }
