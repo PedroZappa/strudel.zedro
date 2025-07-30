@@ -7,6 +7,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const repl = document.createElement(
     'strudel-editor'
   ) as StrudelEditorElement;
+  repl.width = window.innerWidth;
+  repl.height = window.innerHeight;
+  repl.editor.
 
   // (3) Set default strudel
   repl.setAttribute(
@@ -27,7 +30,8 @@ n("<0 1 2 3 4>*8").scale('G4 minor')
   document.getElementById('strudel')?.append(repl);
 
   // (5) Access the CodeMirror/Strudel API for dev
-  console.log(repl.editor);
+  console.log("Editor", repl.editor);
+  console.log("REPL", repl.repl);
 });
 
 /* ------------------------------------------------------------------ */
@@ -35,6 +39,8 @@ n("<0 1 2 3 4>*8").scale('G4 minor')
 /* ------------------------------------------------------------------ */
 interface StrudelEditorElement extends HTMLElement {
   readonly editor: unknown;          // StrudelMirror instance
+  width: number;
+  height: number;
   setCode(code: string): void;
   start(): void;
   stop(): void;

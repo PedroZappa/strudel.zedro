@@ -188,6 +188,13 @@ export class PlaywrightManager {
     }
   }
 
+  /** 
+   * @method startStrudel
+   * @description Starts the Strudel REPL.
+   * @async
+   * 
+   * @returns {Promise<boolean>} True if the Strudel REPL is successfully started, false otherwise.
+   */
   async startStrudel(): Promise<boolean | undefined> {
     if (!this.isInitialized || !this.page) {
       console.error('❌ Playwright not initialized');
