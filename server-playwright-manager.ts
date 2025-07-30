@@ -188,21 +188,21 @@ export class PlaywrightManager {
     }
   }
 
-  async startStrudel(): Promise<boolean> {
+  async startStrudel(): Promise<boolean | undefined> {
     if (!this.isInitialized || !this.page) {
       console.error('❌ Playwright not initialized');
       return false;
     }
 
     try {
-      console.log('⏹️ Starting Strudel playback...');
+      console.log(' Starting Strudel playback...');
 
-      const success = await this.page.evaluate(() => {
+      const success: boolean | undefined = await this.page.evaluate(() => {
         try {
           // Use strudel-editor web component API
           const strudelEditor = document.querySelector('strudel-editor') as any;
           if (strudelEditor && strudelEditor.editor && typeof strudelEditor.editor.start === 'function') {
-            strudelEditor.editor.start();
+            strudelEditor.editor.evaluate();
             console.log('✅ Successfully started via strudel-editor playback');
             return true;
           }
@@ -211,6 +211,8 @@ export class PlaywrightManager {
           return false;
         }
       });
+
+      return success;
     } catch (error) {
       console.error('❌ Failed to stop Strudel:', error);
       return false;
@@ -230,7 +232,7 @@ export class PlaywrightManager {
     }
 
     try {
-      console.log('⏹️ Stopping Strudel playback...');
+      console.log(' Stopping Strudel playback...');
 
       const success = await this.page.evaluate(() => {
         try {

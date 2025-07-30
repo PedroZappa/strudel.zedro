@@ -88,7 +88,6 @@ export class StrudelServer {
   * @async
   * @param {URL} url - URL object
   * @returns {Promise<Response>} Response
-  *
   */
   async serveStaticFile(url: URL): Promise<Response | null> {
     if (!url.pathname.startsWith("/dist/")
@@ -139,8 +138,20 @@ export class StrudelServer {
   }
 
   // API route handlers
+  
+  /**
+  * @method handleFileAPI "/api/file"
+  * @description Handles file API endpoints
+  * @private
+  * @async
+  * @param {Request} request - Request object
+  * @param {URL} url - URL object
+  * @returns {Promise<Response>} Response
+  */
   private async handleFileAPI(request: Request, url: URL): Promise<Response> {
+    // Files operations
     if (url.pathname === "/api/files") {
+      // List files
       if (request.method === "GET") {
         const files = this.fileManager.getFilesList();
         return new Response(JSON.stringify(files), {
@@ -150,7 +161,7 @@ export class StrudelServer {
           }
         });
       }
-
+      // Refresh files
       if (request.method === "POST") {
         // Refresh files - try Neovim buffers first, fallback to local files
         if (this.neovimManager.isConnected()) {
@@ -168,11 +179,15 @@ export class StrudelServer {
       }
     }
 
+    // File operations
     if (url.pathname.startsWith("/api/file/")) {
+      // Extract file path
       const filePath = decodeURIComponent(url.pathname.replace("/api/file/", ""));
-
+      // File operations
       if (request.method === "GET") {
+        // Get file
         const file = this.fileManager.getFile(filePath);
+        // File not found
         if (!file) {
           return new Response(JSON.stringify({ error: "File not found" }), {
             status: 404,
@@ -182,7 +197,6 @@ export class StrudelServer {
             }
           });
         }
-
         return new Response(JSON.stringify(file), {
           headers: {
             "Content-Type": "application/json",
@@ -191,6 +205,7 @@ export class StrudelServer {
         });
       }
 
+      // Update file
       if (request.method === "PUT") {
         const body = await request.json();
         const success = await this.fileManager.updateFileContent(filePath, body.content);
@@ -208,7 +223,17 @@ export class StrudelServer {
     return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
   }
 
+  /**
+  * @method handleNeovimAPI "/api/neovim"
+  * @description Handles Neovim API endpoints
+  * @private
+  * @async
+  * @param {Request} request - Request object
+  * @param {URL} url - URL object
+  * @returns {Promise<Response>} Response
+  */
   private async handleNeovimAPI(request: Request, url: URL): Promise<Response> {
+    // Connect
     if (url.pathname === "/api/neovim/connect" && request.method === "POST") {
       const success = await this.neovimManager.connectToNeovim();
       return new Response(JSON.stringify({
@@ -222,6 +247,7 @@ export class StrudelServer {
       });
     }
 
+    // Status
     if (url.pathname === "/api/neovim/status") {
       return new Response(JSON.stringify(this.neovimManager.getStatus()), {
         headers: {
@@ -234,7 +260,17 @@ export class StrudelServer {
     return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
   }
 
+  /**
+  * @method handlePlaywrightAPI "/api/browser"
+  * @description Handles Playwright API endpoints
+  * @private
+  * @async
+  * @param {Request} request - Request object
+  * @param {URL} url - URL object
+  * @returns {Promise<Response>} Response
+  */
   private async handlePlaywrightAPI(request: Request, url: URL): Promise<Response> {
+    // Initialize a browser instance
     if (url.pathname === "/api/browser/init" && request.method === "POST") {
       const success = await this.playwrightManager.initialize();
       return new Response(JSON.stringify({
@@ -248,11 +284,13 @@ export class StrudelServer {
       });
     }
 
+    // Send code to Strudel REPL
     if (url.pathname === "/api/browser/send-code" && request.method === "POST") {
       try {
         const body = await request.json();
         const { code } = body;
 
+        // Handling empty code
         if (!code) {
           return new Response(JSON.stringify({
             success: false,
@@ -266,6 +304,7 @@ export class StrudelServer {
           });
         }
 
+        // Send code
         const success = await this.playwrightManager.sendCodeToStrudel(code);
         return new Response(JSON.stringify({
           success,
@@ -290,6 +329,21 @@ export class StrudelServer {
       }
     }
 
+    // Start Strudel playback
+    if (url.pathname === "/api/browser/start" && request.method === "POST") {
+      const success = await this.playwrightManager.startStrudel();
+      return new Response(JSON.stringify({
+        success,
+        message: success ? "Started Strudel playback" : "Failed to start playback"
+      }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getCorsHeaders()
+        }
+      });
+    }
+
+    // Stop Strudel playback
     if (url.pathname === "/api/browser/stop" && request.method === "POST") {
       const success = await this.playwrightManager.stopStrudel();
       return new Response(JSON.stringify({
@@ -303,6 +357,7 @@ export class StrudelServer {
       });
     }
 
+    // Get Playwright Browser Status
     if (url.pathname === "/api/browser/status") {
       return new Response(JSON.stringify(this.playwrightManager.getStatus()), {
         headers: {
@@ -315,8 +370,17 @@ export class StrudelServer {
     return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
   }
 
-  // cURL-friendly endpoints
+  /**
+  * @method handleCurlAPI
+  * @description Handles cURL API endpoints
+  * @private
+  * @async
+  * @param {Request} request - Request object
+  * @param {URL} url - URL object
+  * @returns {Promise<Response>} Response
+  */
   private async handleCurlAPI(request: Request, url: URL): Promise<Response> {
+    // Send Current Buffer
     if (url.pathname === "/api/send-current-buffer" && request.method === "POST") {
       try {
         const body = await request.text();
@@ -340,6 +404,7 @@ export class StrudelServer {
       }
     }
 
+    // Stop Strudel
     if (url.pathname === "/api/hush" && request.method === "POST") {
       const success = await this.playwrightManager.stopStrudel();
       return new Response(success ? "⏹️ Stopped Strudel" : "❌ Failed to stop", {
@@ -354,7 +419,13 @@ export class StrudelServer {
     return new Response("Not Found", { status: 404, headers: this.getCorsHeaders() });
   }
 
-  // Health check endpoint
+  /**
+  * @method handleHealthAPI "/health"
+  * @description Handles health API endpoint
+  * @private
+  * @async
+  * @returns {Promise<Response>} Response
+  */
   private async handleHealthAPI(): Promise<Response> {
     const stats = this.fileManager.getStats();
 
@@ -400,7 +471,8 @@ export class StrudelServer {
     }
 
     // API routes
-    if (url.pathname.startsWith("/api/file")) {
+    if (url.pathname.startsWith("/api/file") 
+      || url.pathname.startsWith("/api/files")) {
       return this.handleFileAPI(request, url);
     }
 
@@ -412,12 +484,9 @@ export class StrudelServer {
       return this.handlePlaywrightAPI(request, url);
     }
 
-    if (url.pathname.startsWith("/api/send-current-buffer") || url.pathname === "/api/hush") {
+    if (url.pathname.startsWith("/api/send-current-buffer") 
+      || url.pathname === "/api/hush") {
       return this.handleCurlAPI(request, url);
-    }
-
-    if (url.pathname === "/api/files") {
-      return this.handleFileAPI(request, url);
     }
 
     if (url.pathname === "/health") {

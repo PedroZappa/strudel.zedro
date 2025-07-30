@@ -100,3 +100,7 @@ A Lua plugin for Neovim that provides the in-editor user interface.
     })
     ```
 3.  The plugin will automatically start the required Neovim socket server. You can now use the keymaps (`ss` to send, `sh` to hush) to control Strudel from Neovim.
+
+## TODO
+
+- [ ] Add Remote Server support.
