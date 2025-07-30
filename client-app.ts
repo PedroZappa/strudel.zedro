@@ -9,7 +9,6 @@ window.addEventListener('DOMContentLoaded', () => {
   ) as StrudelEditorElement;
   repl.width = window.innerWidth;
   repl.height = window.innerHeight;
-  repl.editor.
 
   // (3) Set default strudel
   repl.setAttribute(
@@ -31,7 +30,6 @@ n("<0 1 2 3 4>*8").scale('G4 minor')
 
   // (5) Access the CodeMirror/Strudel API for dev
   console.log("Editor", repl.editor);
-  console.log("REPL", repl.repl);
 });
 
 /* ------------------------------------------------------------------ */
