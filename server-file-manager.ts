@@ -206,13 +206,14 @@ export class FileManager {
     if (!bufferName || bufferName === '') return false;
 
     // Skip common virtual/special buffers
-    const skipPatterns = [
+    const skipPatterns: RegExp[] = [
       // Terminal buffers
       /^term:\/\//,
       // No name buffers
       /^\[No Name\]/,
       // Help buffers
-      /\.txt$/ && /\/doc\//,
+      /\.txt$/,
+      /\/doc\//,
       // Plugin buffers that shouldn't be processed
       /^NvimTree/,
       /^NERD_tree/,

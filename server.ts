@@ -19,7 +19,7 @@ import { PlaywrightManager } from "./server-playwright-manager";
 import type { Server } from "bun";
 
 // Import HTML template
-import htmlTemplate from "./strudel-template.html" with { type: "text" };
+const htmlTemplate: string = await Bun.file("./strudel-template.html").text();
 
 interface ServerConfig {
   port: number;
@@ -451,8 +451,16 @@ export class StrudelServer {
     });
   }
 
+  /**
+  * @method fetch
+  * @description Handles incoming requests
+  * @private
+  * @async
+  * @param {Request} request - Request object
+  * @returns {Promise<Response>} Response
+  */
   private async fetch(request: Request): Promise<Response> {
-
+    // Parse URL
     const url = new URL(request.url);
 
     // Handle preflight requests
@@ -520,7 +528,6 @@ export class StrudelServer {
       // Start Bun server first
       this.server = Bun.serve({
         port: this.config.port,
-        cors: { origin: true },
         fetch: (req) => this.fetch(req),
       });
 

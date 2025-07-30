@@ -12,7 +12,8 @@
     "build:client": "bun build --target=browser --outdir=dist/client --minify --sourcemap=external client-app.ts",
     "build:server": "bun build --target=bun --outdir=dist/server --minify --sourcemap=external server.ts",
     "build:prod": "NODE_ENV=production bun run build",
-    "build:analyze": "bun build --target=browser --outdir=dist/client --minify --analyze client-app.ts"
+    "build:analyze": "bun build --target=browser --outdir=dist/client --minify --analyze client-app.ts",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@strudel/repl": "^1.2.3",

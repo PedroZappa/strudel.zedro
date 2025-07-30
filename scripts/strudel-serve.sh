@@ -1,7 +1,4 @@
 #!/bin/bash
-
-# build.sh - Build script for Neovim + Strudel server
-
 set -e  # Exit on any error
 
 echo "🔨 Building Neovim + Strudel Integration Server v1.0"
@@ -18,15 +15,12 @@ NC='\033[0m' # No Color
 info() {
     echo -e "${BLUE}ℹ️  $1${NC}"
 }
-
 success() {
     echo -e "${GREEN}✅ $1${NC}"
 }
-
 warning() {
     echo -e "${YELLOW}⚠️  $1${NC}"
 }
-
 error() {
     echo -e "${RED}❌ $1${NC}"
 }
@@ -53,13 +47,13 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Type checking
-# info "Running TypeScript type checking..."
-# if bun run type-check; then
-#     success "Type checking passed"
-# else
-#     error "Type checking failed"
-#     exit 1
-# fi
+info "Running TypeScript type checking..."
+if bun run type-check; then
+    success "Type checking passed"
+else
+    error "Type checking failed"
+    exit 1
+fi
 
 # Build client-side modules (for browser)
 info "Building client-side TypeScript modules..."
@@ -174,4 +168,10 @@ echo "  curl http://localhost:3001/health"
 
 info "Starting server in development mode..."
 
-bun run dev
+# If tmux is installed run buun run dev in a horizontal split pane
+if command -v tmux &> /dev/null; then
+  tmux split-window -v -l 50 "bun run dev"
+  tmux select-pane -t 0
+else
+  echo "tmux is not installed, running bun run dev in the current terminal"
+fi

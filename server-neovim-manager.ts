@@ -1,5 +1,4 @@
 import { spawn, ChildProcess } from "child_process";
-import find from "find-process";
 import { attach, NeovimClient } from "neovim";
 import { createConnection } from "net";
 import path from "path";
@@ -8,7 +7,7 @@ import { FileManager } from "./server-file-manager";
 
 export interface NeovimInstance {
   process?: ChildProcess;
-  client?: NeovimClient;
+  client?: NeovimClient | null;
   connected: boolean;
   address?: string;
   pid?: number;
@@ -33,32 +32,6 @@ export class NeovimManager {
 
     this.findSocketFiles = this.findSocketFiles;
     this.testSocketConnection.bind(this);
-  }
-
-  private async validateSocketFile(socketPath: string): Promise<{ valid: boolean, reason?: string }> {
-    try {
-      // Check file existence
-      if (!fs.existsSync(socketPath)) {
-        return { valid: false, reason: "Socket file does not exist" };
-      }
-
-      // Verify it's actually a socket
-      const stat = fs.statSync(socketPath);
-      if (!stat.isSocket()) {
-        return { valid: false, reason: "File exists but is not a socket" };
-      }
-
-      // Check permissions
-      try {
-        fs.accessSync(socketPath, fs.constants.R_OK | fs.constants.W_OK);
-      } catch {
-        return { valid: false, reason: "Permission denied accessing socket" };
-      }
-
-      return { valid: true };
-    } catch (error) {
-      return { valid: false, reason: `Validation error: ${error.message}` };
-    }
   }
 
   private async printConnectionDiagnostics(): Promise<void> {
