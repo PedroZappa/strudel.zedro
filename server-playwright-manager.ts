@@ -21,8 +21,8 @@ export class PlaywrightManager {
   private isInitialized = false;
 
   /**
-  * Constructs a new PlaywrightManager instance.
   * @constructor
+  * @description Constructs a new PlaywrightManager instance.
   *
   * @param {string} strudelUrl - The URL containing the Strudel REPL.
   */

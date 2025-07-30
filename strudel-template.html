@@ -7,22 +7,11 @@
   <!-- Load styles -->
   <link rel="stylesheet" href="styles.css">
   <!-- Load Strudel REPL web components -->
-  <script src="https://unpkg.com/@strudel/repl@latest"></script>
-  <script src="https://unpkg.com/@strudel/web@1.0.3"></script>
+  <script type="module" src="./dist/client/client-app.js"></script>
 </head>
 
 <body>
-
   <div id="strudel"></div>
-  <!-- <script type="module" src="./dist/client/client-app.js"></script> -->
-
-  <script>
-    const repl = document.createElement('strudel-editor');
-    repl.setAttribute('code', `...`);
-    document.getElementById('strudel').append(repl);
-    console.log(repl.editor);
-  </script>
-
 </body>
 
 </html>

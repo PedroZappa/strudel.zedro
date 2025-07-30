@@ -1,4 +1,17 @@
 // server/main-server.ts - Refactored main server with modular architecture
+
+/**
+ * Strudel Server - Modular TypeScript Architecture
+ * @author Firstname Lastname
+ * @module
+ *
+ * @requires path
+ * @requires server-file-manager
+ * @requires server-neovim-manager
+ * @requires server-playwright-manager
+ * @requires Server from bun
+ */
+
 import path from "path";
 import { FileManager } from "./server-file-manager";
 import { NeovimManager } from "./server-neovim-manager";
@@ -18,6 +31,10 @@ interface ServerConfig {
   };
 }
 
+/**
+ * @class StrudelServer
+ * @desription Handles file serving and API endpoints
+ */
 export class StrudelServer {
   private config: ServerConfig;
   private fileManager: FileManager;
@@ -25,6 +42,11 @@ export class StrudelServer {
   private playwrightManager: PlaywrightManager;
   private server?: Server;
 
+  /**
+  * @constructor
+  * @description Constructs a new StrudelServer instance
+  * @param {Partial<ServerConfig>} config - Optional configuration object
+  */
   constructor(config: Partial<ServerConfig> = {}) {
     this.config = {
       port: 3001,
@@ -45,7 +67,13 @@ export class StrudelServer {
   }
 
   // CORS headers
-  private getCorsHeaders() {
+  /** 
+  * @method getCorsHeaders
+  * @description Returns CORS headers
+  * @private
+  * @returns {Object} CORS headers
+  */
+  private getCorsHeaders(): Record<string, string> {
     return {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -54,16 +82,33 @@ export class StrudelServer {
   }
 
   // Static file serving with proper MIME types
+  /**
+  * @method serveStaticFile
+  * @description Handles serving static files
+  * @async
+  * @param {URL} url - URL object
+  * @returns {Promise<Response>} Response
+  *
+  */
   async serveStaticFile(url: URL): Promise<Response | null> {
+    if (!url.pathname.startsWith("/dist/")
+      || !url.pathname.endsWith(".strdl")
+      || !url.pathname.endsWith(".css")
+      || !url.pathname.endsWith(".js")
+      || !url.pathname.endsWith(".js.map")) {
+
+    }
     const filePath = url.pathname;
+    const ext = path.extname(filePath).toLowerCase();
 
     const mimeTypes: Record<string, string> = {
       '.strdl': 'text/strdl',
-      '.json': 'application/json',
       '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.js.map': 'application/json',
+      '.json': 'application/json',
     };
 
-    const ext = path.extname(filePath).toLowerCase();
 
     if (!mimeTypes[ext]) {
       return null;
@@ -73,9 +118,8 @@ export class StrudelServer {
       const localFilePath = path.join(this.config.workingDir, filePath.substring(1));
       const file = Bun.file(localFilePath);
 
-      const exists = await file.exists();
-      if (!exists) {
-        console.log(`❌ Static file not found: ${localFilePath}`);
+      if (!(await file.exists())) {
+        console.log(`❌ Dist file not found: ${filePath}`);
         return new Response("File not found", { status: 404 });
       }
 
@@ -349,6 +393,7 @@ export class StrudelServer {
     }
 
     // Static files first
+    // console.log(`Attempting to serve: ${url.pathname}`);
     const staticResponse = await this.serveStaticFile(url);
     if (staticResponse) {
       return staticResponse;

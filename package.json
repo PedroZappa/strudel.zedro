@@ -6,6 +6,7 @@
   "main": "dist/server/main-server.js",
   "scripts": {
     "dev": "bun --hot --watch server.ts",
+    "serve": "./scripts/strudel-serve.sh",
     "dev:client": "bun build --watch --target=browser --outdir=dist/client client-app.ts",
     "dev:full": "concurrently 'bun run dev:client' 'bun run dev:server'",
     "build:client": "bun build --target=browser --outdir=dist/client --minify --sourcemap=external client-app.ts",
