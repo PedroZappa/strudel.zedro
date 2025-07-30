@@ -1,5 +1,4 @@
 // @ Learning Strudel.cc @by Zedro
-setGainCurve(x => Math.pow(x, 2))
 samples('github:switchangel/breaks')
 samples('github:switchangel/pad')
 samples('github:tidalcycles/uzu-drumkit')
