@@ -47,12 +47,12 @@ A Lua plugin for Neovim that provides the in-editor user interface.
 
 ## Workflow
 
-1.  The user starts the server with `bun run dev`.
+1.  The user starts the server with `bun run serve`.
 2.  The server launches, starts a Playwright-controlled browser, and attempts to connect to a Neovim socket.
 3.  The user configures their Neovim with the `strudel-integration.lua` plugin, which ensures a socket is available.
 4.  Inside Neovim, the user writes Strudel code in a buffer.
 5.  Using a keymap (e.g., `<leader>ss`), the user sends the code to the server.
-6.  The server receives the code and uses Playwright to execute it within the Strudel.cc iframe.
+6.  The server receives the code and uses Playwright to execute it within the Strudel.cc REPL.
 7.  Change the code, hit send again (`<leader>ss`), and the REPL is updated with the contents of the Neovim buffer.
 
 ## Key Technologies
@@ -88,9 +88,9 @@ A Lua plugin for Neovim that provides the in-editor user interface.
 
 1.  Start the development server:
     ```sh
-    bun run dev
+    bun run serve
     ```
-2.  This will start the server, launch a browser window with the UI, and begin listening for a Neovim connection.
+2.  This will build and start the server, launch a browser window with the Strudel REPL, and begin listening for a Neovim connection.
 
 ### Neovim Configuration
 
@@ -106,4 +106,4 @@ A Lua plugin for Neovim that provides the in-editor user interface.
 
 ## TODO
 
-- [ ] Add Remote Server support.
+- [ ] Add Remote Neovim support.
