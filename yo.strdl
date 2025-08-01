@@ -1,4 +1,4 @@
-setcpm(30)
+setCpm(30)
 
 // Drums
 $: s("bd sd bd rim, hh*8")

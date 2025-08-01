@@ -1,6 +1,9 @@
 # strudel.zedro
 
-This repository contains the source code for **strudel.zedro**, an integration that connects the **Neovim** code editor with the **Strudel.cc** web-based live-coding music environment.
+![Vim is an instrument!!](./img/vim-instrument-zedro.png)
+> ☝️ This repo's source of inspiration...
+
+This repository contains the source code for **strudel.zedro**, an experimental integration that connects the **Neovim** code editor with the **Strudel.cc** web-based live-coding music environment.
 
 It allows a user to write code in a local Neovim instance and send the contents of its buffer directly to the Strudel REPL running in a browser, enabling a seamless live-coding workflow without leaving the terminal.
 
