@@ -5,6 +5,7 @@ build/
 
 # Files
 example*
+.DS_Store
 
 # Playwright
 /test-results/
