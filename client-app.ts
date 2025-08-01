@@ -2,7 +2,7 @@
 import '@strudel/repl';
 
 // (1) Wait until the custom element is defined and the DOM is ready
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   // (2) Create the REPL element
   const repl = document.createElement(
     'strudel-editor'
@@ -24,13 +24,31 @@ n("<0 1 2 3 4>*8").scale('G4 minor')
   .lpf(perlin.range(200,20000).slow(4))
 `
   );
+  // 
+  // repl.setAttributeNode
 
   // (4) Mount it into the placeholder div
   document.getElementById('strudel')?.append(repl);
 
   // (5) Access the CodeMirror/Strudel API for dev
   console.log("Editor", repl.editor);
+
+  // Add a play button or ensure the first audio action is user-initiated
+  document.addEventListener('click', async () => {
+    // This ensures audio context is created with user activation
+    if (repl.editor) {
+      repl.start(); // Only start audio after user gesture
+    }
+  }, { once: true });
 });
+
+// Check and handle AudioContext state
+const handleAudioContextState = async (audioContext: AudioContext) => {
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+};
+
 
 /* ------------------------------------------------------------------ */
 /*  TypeScript: minimal typing so that `repl.editor` doesn’t error    */

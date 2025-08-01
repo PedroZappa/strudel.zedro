@@ -38,15 +38,6 @@ export class NeovimManager {
     console.log("\n🔍 CONNECTION DIAGNOSTICS:");
     console.log("=".repeat(40));
 
-    // Check if Neovim processes are running
-    try {
-      const { execSync } = require('child_process');
-      const processes = execSync('pgrep -f nvim', { encoding: 'utf8' }).trim();
-      console.log("📊 Neovim processes:", processes ? processes.split('\n') : 'None found');
-    } catch {
-      console.log("⚠️  Could not detect Neovim processes");
-    }
-
     // Check socket directory contents
     try {
       const socketFiles = fs.readdirSync('/tmp').filter(f =>
