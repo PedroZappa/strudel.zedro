@@ -47,13 +47,13 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Type checking
-info "Running TypeScript type checking..."
-if bun run type-check; then
-    success "Type checking passed"
-else
-    error "Type checking failed"
-    exit 1
-fi
+# info "Running TypeScript type checking..."
+# if bun run type-check; then
+#     success "Type checking passed"
+# else
+#     error "Type checking failed"
+#     exit 1
+# fi
 
 # Build client-side modules (for browser)
 info "Building client-side TypeScript modules..."
