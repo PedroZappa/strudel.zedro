@@ -1,5 +1,15 @@
 // src/client-app.ts
 import '@strudel/repl';
+import { repl, controls } from '@strudel/core';
+import {
+  initAudioOnFirstClick,
+  getAudioContext,
+  webaudioOutput
+} from '@strudel/webaudio';
+const { note } = controls;
+
+// (0) Initialize AudioContext
+initAudioOnFirstClick();
 
 // (1) Wait until the custom element is defined and the DOM is ready
 window.addEventListener('DOMContentLoaded', async () => {
